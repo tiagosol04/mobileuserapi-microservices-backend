@@ -1,0 +1,163 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.example.grpc";
+option csharp_namespace = "AMoverGRPC";
+
+package mota;
+
+enum DrivingMode {
+  ECO = 0;
+  NORMAL = 1;
+  SPORT = 2;
+}
+
+enum MaintenanceStatus {
+  DUE_SOON = 0;
+  SCHEDULED = 1;
+  PLANNED = 2;
+  COMPLETED = 3;
+}
+
+message UserRequest {}
+
+message UserProfile {
+  string name = 1;
+  string email = 2;
+  string photo_uri = 3;
+  string username = 4;
+}
+
+message UpdatePhotoRequest {
+  bytes image_data = 1;
+  string file_extension = 2;
+}
+
+message UpdateProfileInfoRequest {
+  string name = 1;
+  string email = 2;
+}
+
+message DealershipInfo {
+  string name = 1;
+  string phone = 2;
+  string email = 3;
+  string address = 4;
+  string assistance_phone = 5;
+}
+
+message MotaRequest {
+  string vin = 1;
+}
+
+message Document {
+  string type = 1;
+  string uri = 2;
+  int64 updated_at = 3;
+}
+
+message MotaResponse {
+  string vin = 1;
+  string name = 2;
+  bool is_connected = 3;
+  bool is_started = 4;
+  DrivingMode driving_mode = 5;
+
+  int32 battery_level = 6;
+  bool is_charging = 7;
+  string battery_health = 8;
+  int32 battery_cycles = 9;
+  float battery_temperature = 10;
+  float battery_consumption = 11;
+  int32 battery_range = 12;
+  string charging_time = 13;
+
+  float energy_consumption_avg = 14;
+  int32 average_speed = 15;
+  float tyre_front = 16;
+  float tyre_back = 17;
+  int32 total_kilometers = 18;
+  int32 next_service_km = 19;
+
+  double latitude = 20;
+  double longitude = 21;
+  repeated Document documents = 22;
+}
+
+message UserDataResponse {
+  UserProfile profile = 1;
+  DealershipInfo dealership = 2;
+  repeated MotaResponse bikes = 3;
+}
+
+message GuestAccessRequest {
+  string vin = 1;
+  string guest_email = 2;
+}
+
+message GuestListResponse {
+  repeated string guest_emails = 1;
+}
+
+message ActionStatus {
+  bool success = 1;
+  string message = 2;
+}
+
+message AppNotification {
+  string id = 1;
+  string title = 2;
+  string message = 3;
+  int64 timestamp = 4;
+  bool is_read = 5;
+}
+
+message NotificationResponse {
+  repeated AppNotification notifications = 1;
+}
+
+message NotificationIdRequest {
+  string notification_id = 1;
+}
+
+message MaintenanceRecord {
+  int32 id = 1;
+  string title = 2;
+  string subtitle = 3;
+  string description = 4;
+  string date = 5;
+  int32 km_trigger = 6;
+  int32 days_remaining = 7;
+  int32 km_remaining = 8;
+  string service_center = 9;
+  string contact = 10;
+  string address = 11;
+  MaintenanceStatus status = 12;
+}
+
+message MaintenanceAgendaResponse {
+  repeated MaintenanceRecord maintenance = 1;
+}
+
+message BookServiceRequest {
+  int32 maintenance_id = 1;
+  string selected_date = 2;
+}
+
+service MotasService {
+  rpc GetUserData (UserRequest) returns (UserDataResponse);
+  rpc GetMotaInfo (MotaRequest) returns (MotaResponse);
+
+  rpc AddGuestAccess (GuestAccessRequest) returns (ActionStatus);
+  rpc RemoveGuestAccess (GuestAccessRequest) returns (ActionStatus);
+  rpc ListGuestAccess (MotaRequest) returns (GuestListResponse);
+
+  rpc GetNotifications (UserRequest) returns (NotificationResponse);
+  rpc MarkNotificationAsRead (NotificationIdRequest) returns (ActionStatus);
+
+  rpc GetMaintenanceAgenda (MotaRequest) returns (MaintenanceAgendaResponse);
+  rpc BookMaintenanceService (BookServiceRequest) returns (ActionStatus);
+
+  rpc UpdateProfilePhoto (UpdatePhotoRequest) returns (ActionStatus);
+  rpc UpdateProfileInfo (UpdateProfileInfoRequest) returns (ActionStatus);
+}

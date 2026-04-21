@@ -1,0 +1,139 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\AMoVer\\Desktop\\MobileUserAPI1\\MobileUser\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{66EEA086-C247-4A53-9E57-C08D54A371D3}|MobileUser\\MobileUser.csproj|c:\\users\\amover\\desktop\\mobileuserapi1\\mobileuser\\mobileuser\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{66EEA086-C247-4A53-9E57-C08D54A371D3}|MobileUser\\MobileUser.csproj|solutionrelative:mobileuser\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{66EEA086-C247-4A53-9E57-C08D54A371D3}|MobileUser\\MobileUser.csproj|c:\\users\\amover\\desktop\\mobileuserapi1\\mobileuser\\mobileuser\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{66EEA086-C247-4A53-9E57-C08D54A371D3}|MobileUser\\MobileUser.csproj|solutionrelative:mobileuser\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{66EEA086-C247-4A53-9E57-C08D54A371D3}|MobileUser\\MobileUser.csproj|c:\\users\\amover\\desktop\\mobileuserapi1\\mobileuser\\mobileuser\\repositories\\motasrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{66EEA086-C247-4A53-9E57-C08D54A371D3}|MobileUser\\MobileUser.csproj|solutionrelative:mobileuser\\repositories\\motasrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{66EEA086-C247-4A53-9E57-C08D54A371D3}|MobileUser\\MobileUser.csproj|c:\\users\\amover\\desktop\\mobileuserapi1\\mobileuser\\mobileuser\\services\\motasgrpcservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{66EEA086-C247-4A53-9E57-C08D54A371D3}|MobileUser\\MobileUser.csproj|solutionrelative:mobileuser\\services\\motasgrpcservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{66EEA086-C247-4A53-9E57-C08D54A371D3}|MobileUser\\MobileUser.csproj|c:\\users\\amover\\desktop\\mobileuserapi1\\mobileuser\\mobileuser\\repositories\\interfaces\\imotasrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{66EEA086-C247-4A53-9E57-C08D54A371D3}|MobileUser\\MobileUser.csproj|solutionrelative:mobileuser\\repositories\\interfaces\\imotasrepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{66EEA086-C247-4A53-9E57-C08D54A371D3}|MobileUser\\MobileUser.csproj|c:\\users\\amover\\desktop\\mobileuserapi1\\mobileuser\\mobileuser\\mobileuser.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
+      "RelativeMoniker": "D:0:0:{66EEA086-C247-4A53-9E57-C08D54A371D3}|MobileUser\\MobileUser.csproj|solutionrelative:mobileuser\\mobileuser.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{66EEA086-C247-4A53-9E57-C08D54A371D3}|MobileUser\\MobileUser.csproj|c:\\users\\amover\\desktop\\mobileuserapi1\\mobileuser\\mobileuser\\protos\\mota.proto||{3B902123-F8A7-4915-9F01-361F908088D0}",
+      "RelativeMoniker": "D:0:0:{66EEA086-C247-4A53-9E57-C08D54A371D3}|MobileUser\\MobileUser.csproj|solutionrelative:mobileuser\\protos\\mota.proto||{3B902123-F8A7-4915-9F01-361F908088D0}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 1,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "MotasGrpcService.cs",
+              "DocumentMoniker": "C:\\Users\\AMoVer\\Desktop\\MobileUserAPI1\\MobileUser\\MobileUser\\Services\\MotasGrpcService.cs",
+              "RelativeDocumentMoniker": "MobileUser\\Services\\MotasGrpcService.cs",
+              "ToolTip": "C:\\Users\\AMoVer\\Desktop\\MobileUserAPI1\\MobileUser\\MobileUser\\Services\\MotasGrpcService.cs",
+              "RelativeToolTip": "MobileUser\\Services\\MotasGrpcService.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAEwAAAAFAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-21T13:08:18.995Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "appsettings.json",
+              "DocumentMoniker": "C:\\Users\\AMoVer\\Desktop\\MobileUserAPI1\\MobileUser\\MobileUser\\appsettings.json",
+              "RelativeDocumentMoniker": "MobileUser\\appsettings.json",
+              "ToolTip": "C:\\Users\\AMoVer\\Desktop\\MobileUserAPI1\\MobileUser\\MobileUser\\appsettings.json",
+              "RelativeToolTip": "MobileUser\\appsettings.json",
+              "ViewState": "AgIAAAYAAAAAAAAAAAAAABEAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2026-04-21T13:03:11.839Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "MobileUser",
+              "DocumentMoniker": "C:\\Users\\AMoVer\\Desktop\\MobileUserAPI1\\MobileUser\\MobileUser\\MobileUser.csproj",
+              "RelativeDocumentMoniker": "MobileUser\\MobileUser.csproj",
+              "ToolTip": "C:\\Users\\AMoVer\\Desktop\\MobileUserAPI1\\MobileUser\\MobileUser\\MobileUser.csproj",
+              "RelativeToolTip": "MobileUser\\MobileUser.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABQAAAAKAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2026-04-21T12:59:49.904Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Users\\AMoVer\\Desktop\\MobileUserAPI1\\MobileUser\\MobileUser\\Program.cs",
+              "RelativeDocumentMoniker": "MobileUser\\Program.cs",
+              "ToolTip": "C:\\Users\\AMoVer\\Desktop\\MobileUserAPI1\\MobileUser\\MobileUser\\Program.cs",
+              "RelativeToolTip": "MobileUser\\Program.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABEAAAAKAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-21T12:52:38.4Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "MotasRepository.cs",
+              "DocumentMoniker": "C:\\Users\\AMoVer\\Desktop\\MobileUserAPI1\\MobileUser\\MobileUser\\Repositories\\MotasRepository.cs",
+              "RelativeDocumentMoniker": "MobileUser\\Repositories\\MotasRepository.cs",
+              "ToolTip": "C:\\Users\\AMoVer\\Desktop\\MobileUserAPI1\\MobileUser\\MobileUser\\Repositories\\MotasRepository.cs",
+              "RelativeToolTip": "MobileUser\\Repositories\\MotasRepository.cs",
+              "ViewState": "AgIAAL0AAAAAAAAAAAAawNcAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-21T12:52:08.06Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "IMotasRepository.cs",
+              "DocumentMoniker": "C:\\Users\\AMoVer\\Desktop\\MobileUserAPI1\\MobileUser\\MobileUser\\Repositories\\Interfaces\\IMotasRepository.cs",
+              "RelativeDocumentMoniker": "MobileUser\\Repositories\\Interfaces\\IMotasRepository.cs",
+              "ToolTip": "C:\\Users\\AMoVer\\Desktop\\MobileUserAPI1\\MobileUser\\MobileUser\\Repositories\\Interfaces\\IMotasRepository.cs",
+              "RelativeToolTip": "MobileUser\\Repositories\\Interfaces\\IMotasRepository.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABgAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-04-21T12:51:55.502Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "mota.proto",
+              "DocumentMoniker": "C:\\Users\\AMoVer\\Desktop\\MobileUserAPI1\\MobileUser\\MobileUser\\Protos\\mota.proto",
+              "RelativeDocumentMoniker": "MobileUser\\Protos\\mota.proto",
+              "ToolTip": "C:\\Users\\AMoVer\\Desktop\\MobileUserAPI1\\MobileUser\\MobileUser\\Protos\\mota.proto",
+              "RelativeToolTip": "MobileUser\\Protos\\mota.proto",
+              "ViewState": "AgIAAHMAAAAAAAAAAAAQwKIAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003853|",
+              "WhenOpened": "2026-04-21T12:51:25.291Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
