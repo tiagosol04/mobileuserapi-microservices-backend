@@ -20,11 +20,16 @@ namespace MobileUser.Services
 
         public override async Task<MotaResponse> GetMotaInfo(MotaRequest request, ServerCallContext context)
         {
+            if (string.IsNullOrWhiteSpace(request.Vin))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
+            }
+
             var mota = await _repository.GetMotaInfoAsync(request.Vin);
 
             if (mota is null)
             {
-                throw new RpcException(new Status(StatusCode.NotFound, "Mota não encontrada."));
+                throw new RpcException(new Status(StatusCode.NotFound, $"Mota com VIN '{request.Vin}' não encontrada."));
             }
 
             return mota;
@@ -32,16 +37,47 @@ namespace MobileUser.Services
 
         public override async Task<ActionStatus> AddGuestAccess(GuestAccessRequest request, ServerCallContext context)
         {
+            if (string.IsNullOrWhiteSpace(request.Vin))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
+            }
+
+            if (string.IsNullOrWhiteSpace(request.GuestEmail))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "Email do convidado é obrigatório."));
+            }
+
             return await _repository.AddGuestAccessAsync(request.Vin, request.GuestEmail);
         }
 
         public override async Task<ActionStatus> RemoveGuestAccess(GuestAccessRequest request, ServerCallContext context)
         {
+            if (string.IsNullOrWhiteSpace(request.Vin))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
+            }
+
+            if (string.IsNullOrWhiteSpace(request.GuestEmail))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "Email do convidado é obrigatório."));
+            }
+
             return await _repository.RemoveGuestAccessAsync(request.Vin, request.GuestEmail);
         }
 
         public override async Task<GuestListResponse> ListGuestAccess(MotaRequest request, ServerCallContext context)
         {
+            if (string.IsNullOrWhiteSpace(request.Vin))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
+            }
+
+            var mota = await _repository.GetMotaInfoAsync(request.Vin);
+            if (mota is null)
+            {
+                throw new RpcException(new Status(StatusCode.NotFound, $"Mota com VIN '{request.Vin}' não encontrada."));
+            }
+
             return await _repository.ListGuestAccessAsync(request.Vin);
         }
 
@@ -52,26 +88,82 @@ namespace MobileUser.Services
 
         public override async Task<ActionStatus> MarkNotificationAsRead(NotificationIdRequest request, ServerCallContext context)
         {
+            if (string.IsNullOrWhiteSpace(request.NotificationId))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "ID da notificação é obrigatório."));
+            }
+
             return await _repository.MarkNotificationAsReadAsync(request.NotificationId);
         }
 
         public override async Task<MaintenanceAgendaResponse> GetMaintenanceAgenda(MotaRequest request, ServerCallContext context)
         {
+            if (string.IsNullOrWhiteSpace(request.Vin))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
+            }
+
+            var mota = await _repository.GetMotaInfoAsync(request.Vin);
+            if (mota is null)
+            {
+                throw new RpcException(new Status(StatusCode.NotFound, $"Mota com VIN '{request.Vin}' não encontrada."));
+            }
+
             return await _repository.GetMaintenanceAgendaAsync(request.Vin);
         }
 
         public override async Task<ActionStatus> BookMaintenanceService(BookServiceRequest request, ServerCallContext context)
         {
-            return await _repository.BookMaintenanceServiceAsync(request.MaintenanceId, request.SelectedDate);
+            if (string.IsNullOrWhiteSpace(request.Vin))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
+            }
+
+            if (request.MaintenanceId <= 0)
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "O ID da manutenção é inválido."));
+            }
+
+            if (string.IsNullOrWhiteSpace(request.SelectedDate))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "Data é obrigatória."));
+            }
+
+            if (!DateOnly.TryParse(request.SelectedDate, out _))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "A data deve estar num formato válido (ex: 2026-05-10)."));
+            }
+
+            return await _repository.BookMaintenanceServiceAsync(request.Vin, request.MaintenanceId, request.SelectedDate);
         }
 
         public override async Task<ActionStatus> UpdateProfilePhoto(UpdatePhotoRequest request, ServerCallContext context)
         {
+            if (request.ImageData == null || request.ImageData.IsEmpty)
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "Dados da imagem são obrigatórios."));
+            }
+
+            if (string.IsNullOrWhiteSpace(request.FileExtension))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "Extensão do ficheiro é obrigatória."));
+            }
+
             return await _repository.UpdateProfilePhotoAsync(request.ImageData.ToByteArray(), request.FileExtension);
         }
 
         public override async Task<ActionStatus> UpdateProfileInfo(UpdateProfileInfoRequest request, ServerCallContext context)
         {
+            if (string.IsNullOrWhiteSpace(request.Name))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "Nome é obrigatório."));
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Email))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "Email é obrigatório."));
+            }
+
             return await _repository.UpdateProfileInfoAsync(request.Name, request.Email);
         }
     }
