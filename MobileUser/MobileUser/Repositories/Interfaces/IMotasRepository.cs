@@ -15,10 +15,9 @@ namespace MobileUser.Repositories.Interfaces
         Task<ActionStatus> MarkNotificationAsReadAsync(string notificationId);
 
         Task<MaintenanceAgendaResponse> GetMaintenanceAgendaAsync(string vin);
-        Task<ActionStatus> BookMaintenanceServiceAsync(int maintenanceId, string selectedDate);
+        Task<ActionStatus> BookMaintenanceServiceAsync(string vin, int maintenanceId, string selectedDate);
 
         Task<ActionStatus> UpdateProfilePhotoAsync(byte[] imageData, string fileExtension);
         Task<ActionStatus> UpdateProfileInfoAsync(string name, string email);
     }
-
 }

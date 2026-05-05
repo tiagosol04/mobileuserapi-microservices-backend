@@ -7,16 +7,18 @@ option csharp_namespace = "AMoverGRPC";
 package mota;
 
 enum DrivingMode {
-  ECO = 0;
-  NORMAL = 1;
-  SPORT = 2;
+  DRIVING_MODE_UNKNOWN = 0;
+  ECO = 1;
+  NORMAL = 2;
+  SPORT = 3;
 }
 
 enum MaintenanceStatus {
-  DUE_SOON = 0;
-  SCHEDULED = 1;
-  PLANNED = 2;
-  COMPLETED = 3;
+  MAINTENANCE_STATUS_UNKNOWN = 0;
+  DUE_SOON = 1;
+  SCHEDULED = 2;
+  PLANNED = 3;
+  COMPLETED = 4;
 }
 
 message UserRequest {}
@@ -142,6 +144,7 @@ message MaintenanceAgendaResponse {
 message BookServiceRequest {
   int32 maintenance_id = 1;
   string selected_date = 2;
+  string vin = 3;
 }
 
 service MotasService {
