@@ -1,3 +1,5 @@
 <Solution>
-  <Project Path="MobileUser/MobileUser.csproj" />
+  <Project Path="MotoService/MotoService.csproj" Id="d81ad9f9-4fc3-47e4-927f-83db01da5da1" />
+  <Project Path="TelemetryService/TelemetryService.csproj" Id="f0b04282-790f-41a3-8000-d93f987a1e30" />
+  <Project Path="TripsService/TripsService.csproj" Id="aceebf06-9677-49a6-811f-f2015197fc72" />
 </Solution>

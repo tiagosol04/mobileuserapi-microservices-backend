@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+option csharp_namespace = "MotoService";
+
+package moto;
+
+message MotoRequest {
+  string vin = 1;
+}
+
+message UserMotosRequest {
+  string user_id = 1;
+}
+
+message RegisterMotoRequest {
+  string vin = 1;
+  string moto_sn = 2;
+  string name = 3;
+  string model = 4;
+  string manufacturer = 5;
+  float battery_capacity = 6;
+  string image_uri = 7;
+  string color = 8;
+}
+
+message UpdateMotoRequest {
+  string vin = 1;
+  string name = 2;
+  string model = 3;
+  string manufacturer = 4;
+  float battery_capacity = 5;
+  string image_uri = 6;
+  string color = 7;
+}
+
+message MotoDocument {
+  string type = 1;
+  string uri = 2;
+  int64 updated_at = 3;
+}
+
+message AddMotoDocumentRequest {
+  string vin = 1;
+  MotoDocument document = 2;
+}
+
+message MotoResponse {
+  int32 id = 1;
+  string vin = 2;
+  string moto_sn = 3;
+  string name = 4;
+  string model = 5;
+  string manufacturer = 6;
+  float battery_capacity = 7;
+  string image_uri = 8;
+  string color = 9;
+  int64 created_at = 10;
+  int64 updated_at = 11;
+  repeated MotoDocument documents = 12;
+}
+
+message MotoListResponse {
+  repeated MotoResponse motos = 1;
+}
+
+message MotoDocumentsResponse {
+  repeated MotoDocument documents = 1;
+}
+
+message ValidateMotoResponse {
+  bool exists = 1;
+  string message = 2;
+}
+
+message ActionStatus {
+  bool success = 1;
+  string message = 2;
+}
+
+service MotoService {
+  rpc GetMotoByVin (MotoRequest) returns (MotoResponse);
+  rpc ListMotosByUser (UserMotosRequest) returns (MotoListResponse);
+  rpc RegisterMoto (RegisterMotoRequest) returns (MotoResponse);
+  rpc UpdateMoto (UpdateMotoRequest) returns (MotoResponse);
+  rpc ValidateMotoExists (MotoRequest) returns (ValidateMotoResponse);
+  rpc GetMotoDocuments (MotoRequest) returns (MotoDocumentsResponse);
+  rpc AddMotoDocument (AddMotoDocumentRequest) returns (ActionStatus);
+}
