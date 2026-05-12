@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using AMoverGRPC;
 using MobileUser.Repositories.Interfaces;
 
@@ -25,116 +25,12 @@ namespace MobileUser.Repositories
             AssistancePhone = "932222222"
         };
 
-        private readonly Dictionary<string, MotaData> _motas;
         private readonly Dictionary<string, List<string>> _guests;
         private readonly List<AppNotification> _notifications;
         private readonly Dictionary<string, List<MaintenanceRecord>> _maintenance;
 
         public MotasRepository()
         {
-            var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-
-            _motas = new Dictionary<string, MotaData>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["V-FG-2024-X1-001"] = new MotaData
-                {
-                    Vin = "V-FG-2024-X1-001",
-                    Name = "Fulgora X1",
-                    IsConnected = true,
-                    IsStarted = false,
-                    DrivingMode = DrivingMode.Normal,
-                    BatteryLevel = 87,
-                    IsCharging = false,
-                    BatteryHealth = "Boa",
-                    BatteryCycles = 45,
-                    BatteryTemperature = 24.6f,
-                    BatteryConsumption = 3.5f,
-                    BatteryRange = 120,
-                    ChargingTime = "1h20min",
-                    EnergyConsumptionAvg = 2.8f,
-                    AverageSpeed = 42,
-                    TyreFront = 2.3f,
-                    TyreBack = 2.5f,
-                    TotalKilometers = 1540,
-                    NextServiceKm = 2000,
-                    Latitude = 41.2950,
-                    Longitude = -7.7460,
-                    Documents = new List<Document>
-                    {
-                        new Document
-                        {
-                            Type = "manual",
-                            Uri = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
-                            UpdatedAt = now
-                        },
-                        new Document
-                        {
-                            Type = "insurance",
-                            Uri = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
-                            UpdatedAt = now
-                        }
-                    }
-                },
-                ["V-FG-2024-X1-002"] = new MotaData
-                {
-                    Vin = "V-FG-2024-X1-002",
-                    Name = "Fulgora X1 Sport",
-                    IsConnected = true,
-                    IsStarted = false,
-                    DrivingMode = DrivingMode.Sport,
-                    BatteryLevel = 23,
-                    IsCharging = true,
-                    BatteryHealth = "Razoável",
-                    BatteryCycles = 210,
-                    BatteryTemperature = 31.2f,
-                    BatteryConsumption = 5.1f,
-                    BatteryRange = 28,
-                    ChargingTime = "2h45min",
-                    EnergyConsumptionAvg = 4.2f,
-                    AverageSpeed = 55,
-                    TyreFront = 2.1f,
-                    TyreBack = 2.2f,
-                    TotalKilometers = 8720,
-                    NextServiceKm = 9000,
-                    Latitude = 41.3005,
-                    Longitude = -7.7440,
-                    Documents = new List<Document>
-                    {
-                        new Document
-                        {
-                            Type = "manual",
-                            Uri = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
-                            UpdatedAt = now
-                        }
-                    }
-                },
-                ["V-FG-2024-X1-003"] = new MotaData
-                {
-                    Vin = "V-FG-2024-X1-003",
-                    Name = "Fulgora X1 Eco",
-                    IsConnected = false,
-                    IsStarted = false,
-                    DrivingMode = DrivingMode.Eco,
-                    BatteryLevel = 5,
-                    IsCharging = false,
-                    BatteryHealth = "Fraca",
-                    BatteryCycles = 480,
-                    BatteryTemperature = 18.0f,
-                    BatteryConsumption = 2.1f,
-                    BatteryRange = 6,
-                    ChargingTime = "3h10min",
-                    EnergyConsumptionAvg = 2.0f,
-                    AverageSpeed = 30,
-                    TyreFront = 1.9f,
-                    TyreBack = 1.8f,
-                    TotalKilometers = 15200,
-                    NextServiceKm = 15500,
-                    Latitude = 41.2880,
-                    Longitude = -7.7350,
-                    Documents = new List<Document>()
-                }
-            };
-
             _guests = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase)
             {
                 ["V-FG-2024-X1-001"] = new List<string> { "guest1@email.com", "guest2@email.com" },
@@ -252,40 +148,35 @@ namespace MobileUser.Repositories
             };
         }
 
-        public Task<UserDataResponse> GetUserDataAsync()
+        public Task<UserProfile> GetUserProfileAsync()
         {
             lock (_sync)
             {
-                var response = new UserDataResponse
-                {
-                    Profile = _profile.Clone(),
-                    Dealership = _dealership.Clone()
-                };
-
-                foreach (var mota in _motas.Values.OrderBy(m => m.Name))
-                {
-                    response.Bikes.Add(mota.ToMotaResponse());
-                }
-
-                return Task.FromResult(response);
+                return Task.FromResult(_profile.Clone());
             }
         }
 
-        public Task<MotaResponse?> GetMotaInfoAsync(string vin)
+        public Task<DealershipInfo> GetDealershipInfoAsync()
         {
             lock (_sync)
             {
-                if (string.IsNullOrWhiteSpace(vin))
-                {
-                    return Task.FromResult<MotaResponse?>(null);
-                }
+                return Task.FromResult(_dealership.Clone());
+            }
+        }
 
-                if (!_motas.TryGetValue(vin, out var mota))
-                {
-                    return Task.FromResult<MotaResponse?>(null);
-                }
+        public Task<int> GetNextServiceKmAsync(string vin)
+        {
+            lock (_sync)
+            {
+                if (!_maintenance.TryGetValue(vin, out var records))
+                    return Task.FromResult(0);
 
-                return Task.FromResult<MotaResponse?>(mota.ToMotaResponse());
+                var next = records
+                    .Where(r => r.Status != MaintenanceStatus.Completed)
+                    .OrderBy(r => r.KmTrigger)
+                    .FirstOrDefault();
+
+                return Task.FromResult(next?.KmTrigger ?? 0);
             }
         }
 
@@ -293,15 +184,6 @@ namespace MobileUser.Repositories
         {
             lock (_sync)
             {
-                if (!_motas.ContainsKey(vin))
-                {
-                    return Task.FromResult(new ActionStatus
-                    {
-                        Success = false,
-                        Message = $"Mota com VIN '{vin}' não encontrada."
-                    });
-                }
-
                 if (!IsValidEmail(guestEmail))
                 {
                     return Task.FromResult(new ActionStatus
@@ -342,15 +224,6 @@ namespace MobileUser.Repositories
         {
             lock (_sync)
             {
-                if (!_motas.ContainsKey(vin))
-                {
-                    return Task.FromResult(new ActionStatus
-                    {
-                        Success = false,
-                        Message = $"Mota com VIN '{vin}' não encontrada."
-                    });
-                }
-
                 if (!_guests.ContainsKey(vin))
                 {
                     return Task.FromResult(new ActionStatus
@@ -468,33 +341,6 @@ namespace MobileUser.Repositories
         {
             lock (_sync)
             {
-                if (string.IsNullOrWhiteSpace(vin))
-                {
-                    return Task.FromResult(new ActionStatus
-                    {
-                        Success = false,
-                        Message = "VIN é obrigatório."
-                    });
-                }
-
-                if (!_motas.ContainsKey(vin))
-                {
-                    return Task.FromResult(new ActionStatus
-                    {
-                        Success = false,
-                        Message = $"Mota com VIN '{vin}' não encontrada."
-                    });
-                }
-
-                if (maintenanceId <= 0)
-                {
-                    return Task.FromResult(new ActionStatus
-                    {
-                        Success = false,
-                        Message = "O ID da manutenção é inválido."
-                    });
-                }
-
                 if (!DateOnly.TryParseExact(
                         selectedDate,
                         "yyyy-MM-dd",
@@ -530,11 +376,9 @@ namespace MobileUser.Repositories
                 }
 
                 var today = DateOnly.FromDateTime(DateTime.UtcNow);
-                var remainingDays = parsedDate.DayNumber - today.DayNumber;
-
                 record.Date = selectedDate;
                 record.Status = MaintenanceStatus.Scheduled;
-                record.DaysRemaining = Math.Max(remainingDays, 0);
+                record.DaysRemaining = Math.Max(parsedDate.DayNumber - today.DayNumber, 0);
 
                 return Task.FromResult(new ActionStatus
                 {
@@ -568,9 +412,7 @@ namespace MobileUser.Repositories
 
                 var normalizedExtension = fileExtension.Trim().ToLowerInvariant();
                 if (!normalizedExtension.StartsWith("."))
-                {
                     normalizedExtension = "." + normalizedExtension;
-                }
 
                 var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
 
@@ -629,80 +471,15 @@ namespace MobileUser.Repositories
         private static bool IsValidEmail(string? email)
         {
             if (string.IsNullOrWhiteSpace(email))
-            {
                 return false;
-            }
 
             var trimmed = email.Trim();
 
             if (trimmed.Contains(' '))
-            {
                 return false;
-            }
 
             var atIndex = trimmed.IndexOf('@');
             return atIndex > 0 && atIndex < trimmed.Length - 1;
-        }
-
-        private sealed class MotaData
-        {
-            public string Vin { get; set; } = string.Empty;
-            public string Name { get; set; } = string.Empty;
-            public bool IsConnected { get; set; }
-            public bool IsStarted { get; set; }
-            public DrivingMode DrivingMode { get; set; }
-            public int BatteryLevel { get; set; }
-            public bool IsCharging { get; set; }
-            public string BatteryHealth { get; set; } = string.Empty;
-            public int BatteryCycles { get; set; }
-            public float BatteryTemperature { get; set; }
-            public float BatteryConsumption { get; set; }
-            public int BatteryRange { get; set; }
-            public string ChargingTime { get; set; } = string.Empty;
-            public float EnergyConsumptionAvg { get; set; }
-            public int AverageSpeed { get; set; }
-            public float TyreFront { get; set; }
-            public float TyreBack { get; set; }
-            public int TotalKilometers { get; set; }
-            public int NextServiceKm { get; set; }
-            public double Latitude { get; set; }
-            public double Longitude { get; set; }
-            public List<Document> Documents { get; set; } = new();
-
-            public MotaResponse ToMotaResponse()
-            {
-                var response = new MotaResponse
-                {
-                    Vin = Vin,
-                    Name = Name,
-                    IsConnected = IsConnected,
-                    IsStarted = IsStarted,
-                    DrivingMode = DrivingMode,
-                    BatteryLevel = BatteryLevel,
-                    IsCharging = IsCharging,
-                    BatteryHealth = BatteryHealth,
-                    BatteryCycles = BatteryCycles,
-                    BatteryTemperature = BatteryTemperature,
-                    BatteryConsumption = BatteryConsumption,
-                    BatteryRange = BatteryRange,
-                    ChargingTime = ChargingTime,
-                    EnergyConsumptionAvg = EnergyConsumptionAvg,
-                    AverageSpeed = AverageSpeed,
-                    TyreFront = TyreFront,
-                    TyreBack = TyreBack,
-                    TotalKilometers = TotalKilometers,
-                    NextServiceKm = NextServiceKm,
-                    Latitude = Latitude,
-                    Longitude = Longitude
-                };
-
-                foreach (var document in Documents)
-                {
-                    response.Documents.Add(document.Clone());
-                }
-
-                return response;
-            }
         }
     }
 }

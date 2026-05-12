@@ -9,6 +9,7 @@
 	<ItemGroup>
 		<PackageReference Include="Grpc.AspNetCore" Version="2.57.0" />
 		<PackageReference Include="Grpc.AspNetCore.Server.Reflection" Version="2.57.0" />
+		<PackageReference Include="Grpc.Net.ClientFactory" Version="2.57.0" />
 		<PackageReference Include="Google.Protobuf" Version="3.25.1" />
 		<PackageReference Include="Grpc.Tools" Version="2.57.0">
 			<PrivateAssets>All</PrivateAssets>
@@ -17,6 +18,9 @@
 
 	<ItemGroup>
 		<Protobuf Include="Protos\mota.proto" GrpcServices="Server" />
+		<Protobuf Include="..\MotoService\Protos\moto.proto" GrpcServices="Client" Link="Protos\moto.proto" />
+		<Protobuf Include="..\TelemetryService\Protos\telemetry.proto" GrpcServices="Client" Link="Protos\telemetry.proto" />
+		<Protobuf Include="..\TripsService\Protos\trips.proto" GrpcServices="Client" Link="Protos\trips.proto" />
 	</ItemGroup>
 
 </Project>

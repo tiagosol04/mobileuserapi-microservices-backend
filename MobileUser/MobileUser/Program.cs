@@ -8,8 +8,16 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddGrpc();
 builder.Services.AddGrpcReflection();
 
-// Singleton para manter o estado em memória entre chamadas
 builder.Services.AddSingleton<IMotasRepository, MotasRepository>();
+
+builder.Services.AddGrpcClient<MotoService.MotoService.MotoServiceClient>(o =>
+    o.Address = new Uri(builder.Configuration["ServiceAddresses:MotoService"]!));
+
+builder.Services.AddGrpcClient<TelemetryService.Grpc.TelemetryService.TelemetryServiceClient>(o =>
+    o.Address = new Uri(builder.Configuration["ServiceAddresses:TelemetryService"]!));
+
+builder.Services.AddGrpcClient<TripsService.Grpc.TripsService.TripsServiceClient>(o =>
+    o.Address = new Uri(builder.Configuration["ServiceAddresses:TripsService"]!));
 
 builder.WebHost.ConfigureKestrel(options =>
 {

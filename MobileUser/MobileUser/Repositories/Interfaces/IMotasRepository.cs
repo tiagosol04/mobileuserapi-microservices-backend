@@ -1,11 +1,12 @@
-﻿using AMoverGRPC;
+using AMoverGRPC;
 
 namespace MobileUser.Repositories.Interfaces
 {
     public interface IMotasRepository
     {
-        Task<UserDataResponse> GetUserDataAsync();
-        Task<MotaResponse?> GetMotaInfoAsync(string vin);
+        Task<UserProfile> GetUserProfileAsync();
+        Task<DealershipInfo> GetDealershipInfoAsync();
+        Task<int> GetNextServiceKmAsync(string vin);
 
         Task<ActionStatus> AddGuestAccessAsync(string vin, string guestEmail);
         Task<ActionStatus> RemoveGuestAccessAsync(string vin, string guestEmail);

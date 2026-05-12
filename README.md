@@ -113,15 +113,23 @@ VINs disponíveis por omissão:
 
 ## Estado da branch MicroServices
 
-### Implementado
-- 4 microserviços independentes com gRPC
+### Fase 1 — Concluída
+- 4 microserviços independentes com gRPC e HTTP/2 explícito
 - Repositórios em memória com thread-safety (`lock`)
 - Validação de input nos serviços gRPC
 - Streaming server-side em TelemetryService
 - Validação de viagem activa antes de StartTrip
+- gRPC Reflection restrita a ambiente Development
 
-### Pendente (Fase 2)
-- Comunicação inter-serviços (ex: MobileUser → MotoService via gRPC client)
-- API Gateway / ponto de entrada único para o cliente móvel
-- Identificação do utilizador autenticado nos pedidos
-- Separação dos campos de telemetria do `MotaResponse` no MobileUser
+### Fase 2 — Concluída
+- MobileUser transformado em BFF: agrega MotoService, TelemetryService e TripsService
+- `GetMotaInfo` chama os 3 serviços downstream (MotoService obrigatório; TelemetryService e TripsService tolerantes a falha)
+- `GetUserData` chama MotoService para a lista de motas e TelemetryService por cada VIN
+- Validação de VIN delegada a `MotoService.ValidateMotoExists`
+- Endereços dos serviços em `appsettings.json` (não hardcoded)
+
+### Pendente (Fase 3)
+- **Autenticação / JWT**: o `UserId` passado a `MotoService.ListMotosByUser` está temporariamente vazio porque ainda não existe camada de autenticação. Ver `MotasGrpcService.GetUserData` (comentário `TODO Fase 3`).
+- **Autorização**: garantir que o utilizador autenticado só vê as motas associadas ao seu perfil.
+- **Campos sem fonte de dados**: `is_charging`, `battery_health`, `battery_cycles`, `charging_time` não existem nos protos actuais dos serviços downstream — devolvem valores por omissão até TelemetryService ser alargado.
+- **Base de dados**: substituir repositórios em memória por persistência real.
