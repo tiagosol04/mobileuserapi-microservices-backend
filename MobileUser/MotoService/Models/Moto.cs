@@ -14,6 +14,7 @@
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
 
+        public string UserId { get; set; } = string.Empty;
         public List<MotoDocumentModel> Documents { get; set; } = new();
     }
 

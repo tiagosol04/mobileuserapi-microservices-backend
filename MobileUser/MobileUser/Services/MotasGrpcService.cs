@@ -1,5 +1,6 @@
 using AMoverGRPC;
 using Grpc.Core;
+using Microsoft.AspNetCore.Authorization;
 using MobileUser.Repositories.Interfaces;
 using MotoSvcClient = MotoService.MotoService.MotoServiceClient;
 using TelemetrySvcClient = TelemetryService.Grpc.TelemetryService.TelemetryServiceClient;
@@ -7,6 +8,7 @@ using TripsSvcClient = TripsService.Grpc.TripsService.TripsServiceClient;
 
 namespace MobileUser.Services
 {
+    [Authorize]
     public class MotasGrpcService : MotasService.MotasServiceBase
     {
         private readonly IMotasRepository _repository;
@@ -28,6 +30,7 @@ namespace MobileUser.Services
 
         public override async Task<UserDataResponse> GetUserData(UserRequest request, ServerCallContext context)
         {
+            var userId = ExtractUserId(context);
             var profile = await _repository.GetUserProfileAsync();
             var dealership = await _repository.GetDealershipInfoAsync();
 
@@ -40,9 +43,8 @@ namespace MobileUser.Services
             MotoService.MotoListResponse motoList;
             try
             {
-                // TODO Fase 3: substituir UserId vazio por identificador real do utilizador autenticado (JWT)
                 motoList = await _motoClient.ListMotosByUserAsync(
-                    new MotoService.UserMotosRequest { UserId = "" });
+                    new MotoService.UserMotosRequest { UserId = userId });
             }
             catch (RpcException)
             {
@@ -71,21 +73,23 @@ namespace MobileUser.Services
             if (string.IsNullOrWhiteSpace(request.Vin))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
 
-            MotoService.MotoResponse moto;
+            var userId = ExtractUserId(context);
+
+            MotoService.MotoListResponse motoList;
             try
             {
-                moto = await _motoClient.GetMotoByVinAsync(
-                    new MotoService.MotoRequest { Vin = request.Vin });
-            }
-            catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
-            {
-                throw new RpcException(new Status(StatusCode.NotFound,
-                    $"Mota com VIN '{request.Vin}' não encontrada."));
+                motoList = await _motoClient.ListMotosByUserAsync(
+                    new MotoService.UserMotosRequest { UserId = userId });
             }
             catch (RpcException)
             {
                 throw new RpcException(new Status(StatusCode.Unavailable, "MotoService indisponível."));
             }
+
+            var moto = motoList.Motos.FirstOrDefault(m => m.Vin == request.Vin);
+            if (moto is null)
+                throw new RpcException(new Status(StatusCode.PermissionDenied,
+                    $"Sem permissão para aceder à mota '{request.Vin}'."));
 
             var telemetryTask = TryCallAsync(() =>
                 _telemetryClient.GetLatestTelemetryAsync(
@@ -110,7 +114,8 @@ namespace MobileUser.Services
             if (string.IsNullOrWhiteSpace(request.GuestEmail))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "Email do convidado é obrigatório."));
 
-            await ValidateVinExistsAsync(request.Vin);
+            var userId = ExtractUserId(context);
+            await ValidateVinOwnershipAsync(request.Vin, userId);
 
             return await _repository.AddGuestAccessAsync(request.Vin, request.GuestEmail);
         }
@@ -123,7 +128,8 @@ namespace MobileUser.Services
             if (string.IsNullOrWhiteSpace(request.GuestEmail))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "Email do convidado é obrigatório."));
 
-            await ValidateVinExistsAsync(request.Vin);
+            var userId = ExtractUserId(context);
+            await ValidateVinOwnershipAsync(request.Vin, userId);
 
             return await _repository.RemoveGuestAccessAsync(request.Vin, request.GuestEmail);
         }
@@ -133,7 +139,8 @@ namespace MobileUser.Services
             if (string.IsNullOrWhiteSpace(request.Vin))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
 
-            await ValidateVinExistsAsync(request.Vin);
+            var userId = ExtractUserId(context);
+            await ValidateVinOwnershipAsync(request.Vin, userId);
 
             return await _repository.ListGuestAccessAsync(request.Vin);
         }
@@ -156,7 +163,8 @@ namespace MobileUser.Services
             if (string.IsNullOrWhiteSpace(request.Vin))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
 
-            await ValidateVinExistsAsync(request.Vin);
+            var userId = ExtractUserId(context);
+            await ValidateVinOwnershipAsync(request.Vin, userId);
 
             return await _repository.GetMaintenanceAgendaAsync(request.Vin);
         }
@@ -176,7 +184,8 @@ namespace MobileUser.Services
                 throw new RpcException(new Status(StatusCode.InvalidArgument,
                     "A data deve estar num formato válido (ex: 2026-05-10)."));
 
-            await ValidateVinExistsAsync(request.Vin);
+            var userId = ExtractUserId(context);
+            await ValidateVinOwnershipAsync(request.Vin, userId);
 
             return await _repository.BookMaintenanceServiceAsync(
                 request.Vin, request.MaintenanceId, request.SelectedDate);
@@ -204,22 +213,30 @@ namespace MobileUser.Services
             return await _repository.UpdateProfileInfoAsync(request.Name, request.Email);
         }
 
-        private async Task ValidateVinExistsAsync(string vin)
+        private async Task ValidateVinOwnershipAsync(string vin, string userId)
         {
-            MotoService.ValidateMotoResponse validation;
+            MotoService.MotoListResponse motoList;
             try
             {
-                validation = await _motoClient.ValidateMotoExistsAsync(
-                    new MotoService.MotoRequest { Vin = vin });
+                motoList = await _motoClient.ListMotosByUserAsync(
+                    new MotoService.UserMotosRequest { UserId = userId });
             }
             catch (RpcException)
             {
                 throw new RpcException(new Status(StatusCode.Unavailable, "MotoService indisponível."));
             }
 
-            if (!validation.Exists)
-                throw new RpcException(new Status(StatusCode.NotFound,
-                    $"Mota com VIN '{vin}' não encontrada."));
+            if (!motoList.Motos.Any(m => m.Vin == vin))
+                throw new RpcException(new Status(StatusCode.PermissionDenied,
+                    $"Sem permissão para aceder à mota '{vin}'."));
+        }
+
+        private static string ExtractUserId(ServerCallContext context)
+        {
+            var userId = context.GetHttpContext().User.FindFirst("sub")?.Value;
+            if (string.IsNullOrEmpty(userId))
+                throw new RpcException(new Status(StatusCode.Unauthenticated, "Utilizador não autenticado."));
+            return userId;
         }
 
         private static MotaResponse BuildMotaResponse(

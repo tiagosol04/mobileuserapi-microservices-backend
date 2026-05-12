@@ -20,6 +20,7 @@ namespace MotoService.Repositories
                 BatteryCapacity = 7.5f,
                 ImageUri = "https://exemplo.com/mota.png",
                 Color = "Preto",
+                UserId = "user-diana-001",
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
                 Documents = new List<MotoDocumentModel>
@@ -34,6 +35,54 @@ namespace MotoService.Repositories
                     {
                         Type = "certificate",
                         Uri = "https://exemplo.com/certificado.pdf",
+                        UpdatedAt = DateTime.UtcNow
+                    }
+                }
+            },
+            new Moto
+            {
+                Id = 2,
+                Vin = "V-FG-2024-X1-002",
+                MotoSN = "SN-002",
+                Name = "Fulgora X1 Sport",
+                Model = "X1 Sport",
+                Manufacturer = "A-MoVeR",
+                BatteryCapacity = 9.0f,
+                ImageUri = "https://exemplo.com/mota-sport.png",
+                Color = "Vermelho",
+                UserId = "user-diana-001",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                Documents = new List<MotoDocumentModel>
+                {
+                    new MotoDocumentModel
+                    {
+                        Type = "manual",
+                        Uri = "https://exemplo.com/manual-sport.pdf",
+                        UpdatedAt = DateTime.UtcNow
+                    }
+                }
+            },
+            new Moto
+            {
+                Id = 3,
+                Vin = "V-FG-2024-X1-003",
+                MotoSN = "SN-003",
+                Name = "Fulgora X1 Eco",
+                Model = "X1 Eco",
+                Manufacturer = "A-MoVeR",
+                BatteryCapacity = 6.0f,
+                ImageUri = "https://exemplo.com/mota-eco.png",
+                Color = "Verde",
+                UserId = "user-tiago-001",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                Documents = new List<MotoDocumentModel>
+                {
+                    new MotoDocumentModel
+                    {
+                        Type = "manual",
+                        Uri = "https://exemplo.com/manual-eco.pdf",
                         UpdatedAt = DateTime.UtcNow
                     }
                 }
@@ -53,7 +102,11 @@ namespace MotoService.Repositories
         {
             lock (_sync)
             {
-                return Task.FromResult(_motos.ToList());
+                if (string.IsNullOrEmpty(userId))
+                    return Task.FromResult(new List<Moto>());
+
+                return Task.FromResult(
+                    _motos.Where(m => m.UserId == userId).ToList());
             }
         }
 

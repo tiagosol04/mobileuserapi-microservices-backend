@@ -128,8 +128,15 @@ VINs disponíveis por omissão:
 - Validação de VIN delegada a `MotoService.ValidateMotoExists`
 - Endereços dos serviços em `appsettings.json` (não hardcoded)
 
-### Pendente (Fase 3)
-- **Autenticação / JWT**: o `UserId` passado a `MotoService.ListMotosByUser` está temporariamente vazio porque ainda não existe camada de autenticação. Ver `MotasGrpcService.GetUserData` (comentário `TODO Fase 3`).
-- **Autorização**: garantir que o utilizador autenticado só vê as motas associadas ao seu perfil.
+### Fase 3A — Concluída
+- JWT Bearer authentication em MobileUser (`Microsoft.AspNetCore.Authentication.JwtBearer`)
+- Todos os métodos gRPC protegidos com `[Authorize]`
+- `sub` claim extraído do token e passado a `MotoService.ListMotosByUser` como `UserId`
+- Autorização baseada em propriedade: `GetMotaInfo` e operações de VIN verificam se o VIN pertence ao utilizador autenticado; resposta `PermissionDenied` se não pertencer
+- `GET /dev/token` disponível apenas em `Development` — gera token com `sub = "user-diana-001"` (mock)
+- `MotoService`: 3 motas com `UserId` (001 e 002 → `user-diana-001`; 003 → `user-tiago-001`); `ListMotosByUserAsync` filtra por utilizador; `userId` vazio devolve lista vazia
+
+### Pendente (Fase 3B+)
 - **Campos sem fonte de dados**: `is_charging`, `battery_health`, `battery_cycles`, `charging_time` não existem nos protos actuais dos serviços downstream — devolvem valores por omissão até TelemetryService ser alargado.
 - **Base de dados**: substituir repositórios em memória por persistência real.
+- **Registo e login reais**: o `/dev/token` é apenas um auxiliar de desenvolvimento; numa fase futura deverá existir um fluxo de autenticação real (ex: OAuth2 / OIDC).
