@@ -5,6 +5,8 @@ namespace TripsService.Repositories
 {
     public class TripRepository : ITripRepository
     {
+        private readonly object _sync = new();
+
         private readonly List<Trip> _trips = new()
         {
             new Trip
@@ -29,21 +31,24 @@ namespace TripsService.Repositories
 
         public Task<Trip> StartTripAsync(string vin)
         {
-            var trip = new Trip
+            lock (_sync)
             {
-                Id = _trips.Count + 1,
-                Vin = vin,
-                Name = $"Viagem {_trips.Count + 1}",
-                StartTime = DateTime.UtcNow,
-                CreatedAt = DateTime.UtcNow,
-                StartLatitude = 41.2950,
-                StartLongitude = -7.7460,
-                IsActive = true
-            };
+                var trip = new Trip
+                {
+                    Id = _trips.Count + 1,
+                    Vin = vin,
+                    Name = $"Viagem {_trips.Count + 1}",
+                    StartTime = DateTime.UtcNow,
+                    CreatedAt = DateTime.UtcNow,
+                    StartLatitude = 41.2950,
+                    StartLongitude = -7.7460,
+                    IsActive = true
+                };
 
-            _trips.Add(trip);
+                _trips.Add(trip);
 
-            return Task.FromResult(trip);
+                return Task.FromResult(trip);
+            }
         }
 
         public Task<Trip?> EndTripAsync(
@@ -54,61 +59,76 @@ namespace TripsService.Repositories
             float energyConsumed,
             float averageSpeed)
         {
-            var trip = _trips
-                .Where(t => t.Vin == vin && t.IsActive)
-                .OrderByDescending(t => t.StartTime)
-                .FirstOrDefault();
+            lock (_sync)
+            {
+                var trip = _trips
+                    .Where(t => t.Vin == vin && t.IsActive)
+                    .OrderByDescending(t => t.StartTime)
+                    .FirstOrDefault();
 
-            if (trip is null)
-                return Task.FromResult<Trip?>(null);
+                if (trip is null)
+                    return Task.FromResult<Trip?>(null);
 
-            trip.EndTime = DateTime.UtcNow;
-            trip.EndLatitude = endLatitude;
-            trip.EndLongitude = endLongitude;
-            trip.DistanceKm = distanceKm;
-            trip.EnergyConsumed = energyConsumed;
-            trip.AverageSpeed = averageSpeed;
-            trip.EnergyConsumptionAvg = distanceKm > 0
-                ? energyConsumed / distanceKm * 100
-                : 0;
-            trip.IsActive = false;
+                trip.EndTime = DateTime.UtcNow;
+                trip.EndLatitude = endLatitude;
+                trip.EndLongitude = endLongitude;
+                trip.DistanceKm = distanceKm;
+                trip.EnergyConsumed = energyConsumed;
+                trip.AverageSpeed = averageSpeed;
+                trip.EnergyConsumptionAvg = distanceKm > 0
+                    ? energyConsumed / distanceKm * 100
+                    : 0;
+                trip.IsActive = false;
 
-            return Task.FromResult<Trip?>(trip);
+                return Task.FromResult<Trip?>(trip);
+            }
         }
 
         public Task<List<Trip>> GetRecentTripsAsync(string vin)
         {
-            var trips = _trips
-                .Where(t => t.Vin == vin)
-                .OrderByDescending(t => t.StartTime)
-                .Take(10)
-                .ToList();
+            lock (_sync)
+            {
+                var trips = _trips
+                    .Where(t => t.Vin == vin)
+                    .OrderByDescending(t => t.StartTime)
+                    .Take(10)
+                    .ToList();
 
-            return Task.FromResult(trips);
+                return Task.FromResult(trips);
+            }
         }
 
         public Task<Trip?> GetTripByIdAsync(int tripId)
         {
-            var trip = _trips.FirstOrDefault(t => t.Id == tripId);
-            return Task.FromResult(trip);
+            lock (_sync)
+            {
+                var trip = _trips.FirstOrDefault(t => t.Id == tripId);
+                return Task.FromResult(trip);
+            }
         }
 
         public Task<List<Trip>> GetTripsByVinAsync(string vin)
         {
-            var trips = _trips
-                .Where(t => t.Vin == vin)
-                .ToList();
+            lock (_sync)
+            {
+                var trips = _trips
+                    .Where(t => t.Vin == vin)
+                    .ToList();
 
-            return Task.FromResult(trips);
+                return Task.FromResult(trips);
+            }
         }
 
         public Task<float> GetTotalKilometersAsync(string vin)
         {
-            var total = _trips
-                .Where(t => t.Vin == vin)
-                .Sum(t => t.DistanceKm);
+            lock (_sync)
+            {
+                var total = _trips
+                    .Where(t => t.Vin == vin)
+                    .Sum(t => t.DistanceKm);
 
-            return Task.FromResult(total);
+                return Task.FromResult(total);
+            }
         }
     }
 }

@@ -5,6 +5,8 @@ namespace MotoService.Repositories
 {
     public class MotoRepository : IMotoRepository
     {
+        private readonly object _sync = new();
+
         private readonly List<Moto> _motos = new()
         {
             new Moto
@@ -40,68 +42,89 @@ namespace MotoService.Repositories
 
         public Task<Moto?> GetMotoByVinAsync(string vin)
         {
-            var moto = _motos.FirstOrDefault(m => m.Vin == vin);
-            return Task.FromResult(moto);
+            lock (_sync)
+            {
+                var moto = _motos.FirstOrDefault(m => m.Vin == vin);
+                return Task.FromResult(moto);
+            }
         }
 
         public Task<List<Moto>> ListMotosByUserAsync(string userId)
         {
-            return Task.FromResult(_motos);
+            lock (_sync)
+            {
+                return Task.FromResult(_motos.ToList());
+            }
         }
 
         public Task<Moto> RegisterMotoAsync(Moto moto)
         {
-            moto.Id = _motos.Count + 1;
-            moto.CreatedAt = DateTime.UtcNow;
-            moto.UpdatedAt = DateTime.UtcNow;
+            lock (_sync)
+            {
+                moto.Id = _motos.Count + 1;
+                moto.CreatedAt = DateTime.UtcNow;
+                moto.UpdatedAt = DateTime.UtcNow;
 
-            _motos.Add(moto);
+                _motos.Add(moto);
 
-            return Task.FromResult(moto);
+                return Task.FromResult(moto);
+            }
         }
 
         public Task<Moto?> UpdateMotoAsync(Moto moto)
         {
-            var existingMoto = _motos.FirstOrDefault(m => m.Vin == moto.Vin);
+            lock (_sync)
+            {
+                var existingMoto = _motos.FirstOrDefault(m => m.Vin == moto.Vin);
 
-            if (existingMoto is null)
-                return Task.FromResult<Moto?>(null);
+                if (existingMoto is null)
+                    return Task.FromResult<Moto?>(null);
 
-            existingMoto.Name = moto.Name;
-            existingMoto.Model = moto.Model;
-            existingMoto.Manufacturer = moto.Manufacturer;
-            existingMoto.BatteryCapacity = moto.BatteryCapacity;
-            existingMoto.ImageUri = moto.ImageUri;
-            existingMoto.Color = moto.Color;
-            existingMoto.UpdatedAt = DateTime.UtcNow;
+                existingMoto.Name = moto.Name;
+                existingMoto.Model = moto.Model;
+                existingMoto.Manufacturer = moto.Manufacturer;
+                existingMoto.BatteryCapacity = moto.BatteryCapacity;
+                existingMoto.ImageUri = moto.ImageUri;
+                existingMoto.Color = moto.Color;
+                existingMoto.UpdatedAt = DateTime.UtcNow;
 
-            return Task.FromResult<Moto?>(existingMoto);
+                return Task.FromResult<Moto?>(existingMoto);
+            }
         }
 
         public Task<bool> ValidateMotoExistsAsync(string vin)
         {
-            var exists = _motos.Any(m => m.Vin == vin);
-            return Task.FromResult(exists);
+            lock (_sync)
+            {
+                var exists = _motos.Any(m => m.Vin == vin);
+                return Task.FromResult(exists);
+            }
         }
 
         public Task<List<MotoDocumentModel>> GetMotoDocumentsAsync(string vin)
         {
-            var moto = _motos.FirstOrDefault(m => m.Vin == vin);
-            return Task.FromResult(moto?.Documents ?? new List<MotoDocumentModel>());
+            lock (_sync)
+            {
+                var moto = _motos.FirstOrDefault(m => m.Vin == vin);
+                return Task.FromResult(moto?.Documents.ToList() ?? new List<MotoDocumentModel>());
+            }
         }
 
         public Task<bool> AddMotoDocumentAsync(string vin, MotoDocumentModel document)
         {
-            var moto = _motos.FirstOrDefault(m => m.Vin == vin);
+            lock (_sync)
+            {
+                var moto = _motos.FirstOrDefault(m => m.Vin == vin);
 
-            if (moto is null)
-                return Task.FromResult(false);
+                if (moto is null)
+                    return Task.FromResult(false);
 
-            document.UpdatedAt = DateTime.UtcNow;
-            moto.Documents.Add(document);
-            moto.UpdatedAt = DateTime.UtcNow;
+                document.UpdatedAt = DateTime.UtcNow;
+                moto.Documents.Add(document);
+                moto.UpdatedAt = DateTime.UtcNow;
 
-            return Task.FromResult(true);
+                return Task.FromResult(true);
+            }
         }
     }
 }

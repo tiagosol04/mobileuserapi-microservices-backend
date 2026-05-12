@@ -19,6 +19,18 @@ namespace TripsService.Services
             TripVinRequest request,
             ServerCallContext context)
         {
+            if (string.IsNullOrWhiteSpace(request.Vin))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
+            }
+
+            var existingTrips = await _repository.GetTripsByVinAsync(request.Vin);
+
+            if (existingTrips.Any(t => t.IsActive))
+            {
+                throw new RpcException(new Status(StatusCode.AlreadyExists, $"Já existe uma viagem ativa para a mota '{request.Vin}'. Termina a viagem atual antes de iniciar uma nova."));
+            }
+
             var trip = await _repository.StartTripAsync(request.Vin);
             return MapToResponse(trip);
         }
