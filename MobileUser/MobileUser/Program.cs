@@ -2,12 +2,14 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 using MobileUser.Repositories;
 using MobileUser.Repositories.Interfaces;
 using MobileUser.Services;
+using MobileUser.Services.EmailService;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddGrpc();
 builder.Services.AddGrpcReflection();
 builder.Services.AddSingleton<IDelegationsRepository, DelegationsRepository>();
+builder.Services.AddSingleton<IEmailService, EmailService>();
 
 // Singleton para manter o estado em memória entre chamadas
 builder.Services.AddSingleton<IMotasRepository, MotasRepository>();

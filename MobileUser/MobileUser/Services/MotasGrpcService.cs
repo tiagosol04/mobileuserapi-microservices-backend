@@ -1,6 +1,7 @@
 ﻿using AMoverGRPC;
 using Grpc.Core;
 using MobileUser.Repositories.Interfaces;
+using MobileUser.Services.EmailService;
 
 namespace MobileUser.Services
 {
@@ -8,13 +9,16 @@ namespace MobileUser.Services
     {
         private readonly IMotasRepository _repository;
         private readonly IDelegationsRepository _delegationsRepository;
+        private readonly IEmailService _emailService;
 
         public MotasGrpcService(
             IMotasRepository repository,
-            IDelegationsRepository delegationsRepository)
+            IDelegationsRepository delegationsRepository,
+            IEmailService emailService)
         {
             _repository = repository;
             _delegationsRepository = delegationsRepository;
+            _emailService = emailService;
         }
 
         public override async Task<UserDataResponse> GetUserData(UserRequest request, ServerCallContext context)
@@ -172,27 +176,39 @@ namespace MobileUser.Services
         }
 
         public override async Task<DelegationResponse> CreateDelegation(
-    CreateDelegationRequest request,
-    ServerCallContext context)
+            CreateDelegationRequest request,
+            ServerCallContext context)
         {
             if (string.IsNullOrWhiteSpace(request.Vin))
             {
-                throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
+                throw new RpcException(
+                    new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
             }
 
             if (string.IsNullOrWhiteSpace(request.GuestEmail))
             {
-                throw new RpcException(new Status(StatusCode.InvalidArgument, "Email do convidado é obrigatório."));
+                throw new RpcException(
+                    new Status(StatusCode.InvalidArgument, "Email do convidado é obrigatório."));
             }
 
             var mota = await _repository.GetMotaInfoAsync(request.Vin);
 
             if (mota is null)
             {
-                throw new RpcException(new Status(StatusCode.NotFound, $"Mota com VIN '{request.Vin}' não encontrada."));
+                throw new RpcException(
+                    new Status(StatusCode.NotFound,
+                    $"Mota com VIN '{request.Vin}' não encontrada."));
             }
 
-            return await _delegationsRepository.CreateDelegationAsync(request.Vin, request.GuestEmail);
+            var delegation = await _delegationsRepository.CreateDelegationAsync(
+                request.Vin,
+                request.GuestEmail);
+
+            await _emailService.SendDelegationInviteAsync(
+                request.GuestEmail,
+                delegation.InviteLink);
+
+            return delegation;
         }
 
         public override async Task<DelegationResponse> GetDelegationByInviteToken(
