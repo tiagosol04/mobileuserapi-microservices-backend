@@ -71,28 +71,83 @@ Ou abre a solução `MobileUser/MobileUser.slnx` no Visual Studio e inicia os 4 
 
 ---
 
+## Autenticação
+
+O MobileUser expõe um endpoint de login mock. As credenciais são apenas para desenvolvimento — em produção seriam substituídas por um IdP externo (Keycloak, Auth0, OIDC).
+
+### POST /auth/login
+
+Disponível em todos os ambientes. Aceita JSON com `username` e `password`. Devolve JWT com `sub = userId`.
+
+**Utilizadores mock disponíveis:**
+
+| username | password | userId | Motas |
+|---|---|---|---|
+| `diana` | `diana123` | `user-diana-001` | V-FG-2024-X1-001, V-FG-2024-X1-002 |
+| `tiago` | `tiago123` | `user-tiago-001` | V-FG-2024-X1-003 |
+
+**Exemplos** (requer cliente HTTP/2, ex: curl com nghttp2 ou PowerShell 7):
+
+```bash
+# Login diana
+curl --http2-prior-knowledge -s -X POST http://localhost:5048/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"diana","password":"diana123"}'
+# Resposta: {"token":"eyJ...","userId":"user-diana-001","username":"diana"}
+
+# Login tiago
+curl --http2-prior-knowledge -s -X POST http://localhost:5048/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"tiago","password":"tiago123"}'
+# Resposta: {"token":"eyJ...","userId":"user-tiago-001","username":"tiago"}
+
+# Credenciais inválidas
+curl --http2-prior-knowledge -s -X POST http://localhost:5048/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"diana","password":"errada"}'
+# Resposta HTTP 401: {"error":"Credenciais inválidas."}
+```
+
+**Nota:** `/dev/token` continua disponível em Development como atalho (gera sempre token para `user-diana-001` sem credenciais). O fluxo principal de teste passa a ser `/auth/login`.
+
+---
+
 ## Testar com grpcurl
 
 Exemplos de chamadas com [grpcurl](https://github.com/fullstorydev/grpcurl) (requer serviço a correr em Development):
 
 ```bash
+# Obter token (substituir TOKEN pelo valor devolvido pelo /auth/login)
+TOKEN="eyJ..."
+
 # Listar serviços disponíveis
 grpcurl -plaintext localhost:5048 list
 grpcurl -plaintext localhost:5294 list
 grpcurl -plaintext localhost:5066 list
 grpcurl -plaintext localhost:5278 list
 
-# MobileUser — dados do utilizador
+# MobileUser — sem token (espera Unauthenticated)
 grpcurl -plaintext -d '{}' localhost:5048 mota.MotasService/GetUserData
 
-# MotoService — info de uma mota por VIN
+# MobileUser — com token diana (devolve motas 001 e 002)
+grpcurl -plaintext -H "Authorization: Bearer $TOKEN" -d '{}' localhost:5048 mota.MotasService/GetUserData
+
+# MobileUser — GetMotaInfo de mota própria (sucesso)
+grpcurl -plaintext -H "Authorization: Bearer $TOKEN" \
+  -d '{"vin":"V-FG-2024-X1-001"}' localhost:5048 mota.MotasService/GetMotaInfo
+
+# MobileUser — GetMotaInfo de mota de outro utilizador (PermissionDenied)
+grpcurl -plaintext -H "Authorization: Bearer $TOKEN" \
+  -d '{"vin":"V-FG-2024-X1-003"}' localhost:5048 mota.MotasService/GetMotaInfo
+
+# MotoService — info de uma mota por VIN (sem JWT — serviço interno)
 grpcurl -plaintext -d '{"vin":"V-FG-2024-X1-001"}' localhost:5294 moto.MotoService/GetMotoByVin
 
-# TelemetryService — última telemetria
+# TelemetryService — última telemetria (sem JWT — serviço interno)
 grpcurl -plaintext -d '{"vin":"V-FG-2024-X1-001"}' localhost:5066 telemetry.TelemetryService/GetLatestTelemetry
 
-# TripsService — iniciar viagem
-grpcurl -plaintext -d '{"vin":"V-FG-2024-X1-001"}' localhost:5278 trips.TripsService/StartTrip
+# TripsService — estatísticas de viagem (sem JWT — serviço interno)
+grpcurl -plaintext -d '{"vin":"V-FG-2024-X1-001"}' localhost:5278 trips.TripsService/GetTripStatistics
 ```
 
 ---
@@ -136,7 +191,16 @@ VINs disponíveis por omissão:
 - `GET /dev/token` disponível apenas em `Development` — gera token com `sub = "user-diana-001"` (mock)
 - `MotoService`: 3 motas com `UserId` (001 e 002 → `user-diana-001`; 003 → `user-tiago-001`); `ListMotosByUserAsync` filtra por utilizador; `userId` vazio devolve lista vazia
 
-### Pendente (Fase 3B+)
+### Fase 3B — Concluída
+- Endpoint `POST /auth/login` com credenciais mock (disponível em todos os ambientes)
+- Dois utilizadores mock: `diana` (motas 001 e 002) e `tiago` (mota 003)
+- Login devolve JWT com `sub = userId`, `userId` e `username`
+- Credenciais inválidas devolvem HTTP 401 com `{"error":"Credenciais inválidas."}`
+- `/dev/token` mantido em Development como atalho (gera token para diana sem credenciais)
+- Em produção, `/auth/login` seria substituído por integração com IdP externo (Keycloak, Auth0, OIDC)
+- Serviços internos (MotoService, TelemetryService, TripsService) continuam sem JWT: a fronteira de segurança é o MobileUser/BFF; em produção seriam protegidos por rede privada ou mTLS
+
+### Pendente (Fase 4+)
 - **Campos sem fonte de dados**: `is_charging`, `battery_health`, `battery_cycles`, `charging_time` não existem nos protos actuais dos serviços downstream — devolvem valores por omissão até TelemetryService ser alargado.
 - **Base de dados**: substituir repositórios em memória por persistência real.
-- **Registo e login reais**: o `/dev/token` é apenas um auxiliar de desenvolvimento; numa fase futura deverá existir um fluxo de autenticação real (ex: OAuth2 / OIDC).
+- **Autenticação real**: substituir `/auth/login` mock por integração com IdP externo (Keycloak, OIDC).

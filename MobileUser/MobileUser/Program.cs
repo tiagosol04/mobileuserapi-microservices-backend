@@ -60,15 +60,68 @@ app.UseAuthorization();
 
 app.MapGrpcService<MotasGrpcService>();
 
+// Fluxo principal de autenticação mock.
+// Em produção, substituir por integração com IdP externo (Keycloak, OIDC).
+app.MapPost("/auth/login", (LoginRequest req, IConfiguration config) =>
+{
+    if (string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Password))
+        return Results.Json(new { error = "Credenciais inválidas." }, statusCode: 401);
+
+    var mockUsers = config.GetSection("MockUsers").Get<MockUser[]>() ?? [];
+
+    var user = mockUsers.FirstOrDefault(u =>
+        string.Equals(u.Username, req.Username.Trim(), StringComparison.OrdinalIgnoreCase)
+        && u.Password == req.Password);
+
+    if (user is null)
+        return Results.Json(new { error = "Credenciais inválidas." }, statusCode: 401);
+
+    var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Key"]!));
+    var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+    var claims = new[]
+    {
+        new Claim("sub", user.UserId),
+        new Claim("name", user.Name),
+        new Claim("email", user.Email),
+        new Claim("preferred_username", user.Username)
+    };
+    var token = new JwtSecurityToken(
+        issuer: config["Jwt:Issuer"],
+        audience: config["Jwt:Audience"],
+        claims: claims,
+        expires: DateTime.UtcNow.AddMinutes(double.Parse(config["Jwt:ExpirationMinutes"]!)),
+        signingCredentials: creds);
+
+    return Results.Ok(new
+    {
+        token = new JwtSecurityTokenHandler().WriteToken(token),
+        userId = user.UserId,
+        username = user.Username
+    });
+});
+
 if (app.Environment.IsDevelopment())
 {
     app.MapGrpcReflectionService();
 
+    // Atalho de desenvolvimento: gera token para user-diana-001 sem credenciais.
+    // Não substituir pelo /auth/login — este endpoint não deve existir fora de Development.
     app.MapGet("/dev/token", (IConfiguration config) =>
     {
+        var mockUsers = config.GetSection("MockUsers").Get<MockUser[]>() ?? [];
+        var diana = mockUsers.FirstOrDefault(u => u.UserId == "user-diana-001");
+
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Key"]!));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-        var claims = new[] { new Claim("sub", "user-diana-001") };
+        var claims = diana is not null
+            ? new[]
+            {
+                new Claim("sub", diana.UserId),
+                new Claim("name", diana.Name),
+                new Claim("email", diana.Email),
+                new Claim("preferred_username", diana.Username)
+            }
+            : new[] { new Claim("sub", "user-diana-001") };
         var token = new JwtSecurityToken(
             issuer: config["Jwt:Issuer"],
             audience: config["Jwt:Audience"],
@@ -82,3 +135,6 @@ if (app.Environment.IsDevelopment())
 app.MapGet("/", () => "MobileUser gRPC API em execução.");
 
 app.Run();
+
+record LoginRequest(string Username, string Password);
+record MockUser(string Username, string Password, string UserId, string Name, string Email);

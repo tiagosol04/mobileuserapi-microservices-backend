@@ -31,7 +31,7 @@ namespace MobileUser.Services
         public override async Task<UserDataResponse> GetUserData(UserRequest request, ServerCallContext context)
         {
             var userId = ExtractUserId(context);
-            var profile = await _repository.GetUserProfileAsync();
+            var profile = BuildUserProfileFromClaims(context);
             var dealership = await _repository.GetDealershipInfoAsync();
 
             var response = new UserDataResponse
@@ -237,6 +237,18 @@ namespace MobileUser.Services
             if (string.IsNullOrEmpty(userId))
                 throw new RpcException(new Status(StatusCode.Unauthenticated, "Utilizador não autenticado."));
             return userId;
+        }
+
+        private static UserProfile BuildUserProfileFromClaims(ServerCallContext context)
+        {
+            var user = context.GetHttpContext().User;
+            return new UserProfile
+            {
+                Name = user.FindFirst("name")?.Value ?? "",
+                Email = user.FindFirst("email")?.Value ?? "",
+                Username = user.FindFirst("preferred_username")?.Value ?? "",
+                PhotoUri = ""
+            };
         }
 
         private static MotaResponse BuildMotaResponse(
