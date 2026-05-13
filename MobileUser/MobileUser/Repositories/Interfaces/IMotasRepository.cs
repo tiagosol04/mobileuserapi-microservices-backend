@@ -1,4 +1,5 @@
 ﻿using AMoverGRPC;
+using MobileUser.Models;
 
 namespace MobileUser.Repositories.Interfaces
 {

@@ -7,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddGrpc();
 builder.Services.AddGrpcReflection();
+builder.Services.AddSingleton<IDelegationsRepository, DelegationsRepository>();
 
 // Singleton para manter o estado em memória entre chamadas
 builder.Services.AddSingleton<IMotasRepository, MotasRepository>();

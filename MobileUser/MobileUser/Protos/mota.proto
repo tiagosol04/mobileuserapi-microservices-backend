@@ -163,4 +163,47 @@ service MotasService {
 
   rpc UpdateProfilePhoto (UpdatePhotoRequest) returns (ActionStatus);
   rpc UpdateProfileInfo (UpdateProfileInfoRequest) returns (ActionStatus);
+
+  rpc CreateDelegation (CreateDelegationRequest) returns (DelegationResponse);
+  rpc GetDelegationByInviteToken (InviteTokenRequest) returns (DelegationResponse);
+  rpc AcceptDelegation (DelegationDecisionRequest) returns (ActionStatus);
+  rpc DeclineDelegation (DelegationDecisionRequest) returns (ActionStatus);
+  rpc ListDelegations (MotaRequest) returns (DelegationListResponse);
+}
+
+//---------~RR
+
+enum DelegationStatus {
+  DELEGATION_STATUS_UNKNOWN = 0;
+  PENDING = 1;
+  ACTIVE = 2;
+  DECLINED = 3;
+  REVOKED = 4;
+}
+
+message CreateDelegationRequest {
+  string vin = 1;
+  string guest_email = 2;
+}
+
+message DelegationResponse {
+  string id = 1;
+  string vin = 2;
+  string guest_email = 3;
+  DelegationStatus status = 4;
+  string invite_token = 5;
+  string invite_link = 6;
+  int64 created_at = 7;
+}
+
+message InviteTokenRequest {
+  string invite_token = 1;
+}
+
+message DelegationDecisionRequest {
+  string invite_token = 1;
+}
+
+message DelegationListResponse {
+  repeated DelegationResponse delegations = 1;
 }

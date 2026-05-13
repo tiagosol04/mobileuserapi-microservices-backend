@@ -1,6 +1,7 @@
-﻿using System.Globalization;
-using AMoverGRPC;
+﻿using AMoverGRPC;
+using MobileUser.Models;
 using MobileUser.Repositories.Interfaces;
+using System.Globalization;
 
 namespace MobileUser.Repositories
 {
@@ -29,6 +30,8 @@ namespace MobileUser.Repositories
         private readonly Dictionary<string, List<string>> _guests;
         private readonly List<AppNotification> _notifications;
         private readonly Dictionary<string, List<MaintenanceRecord>> _maintenance;
+        private readonly Dictionary<string, Delegation> _delegationsByToken = [];
+        private readonly List<Delegation> _delegations = [];
 
         public MotasRepository()
         {

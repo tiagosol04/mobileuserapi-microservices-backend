@@ -7,10 +7,14 @@ namespace MobileUser.Services
     public class MotasGrpcService : MotasService.MotasServiceBase
     {
         private readonly IMotasRepository _repository;
+        private readonly IDelegationsRepository _delegationsRepository;
 
-        public MotasGrpcService(IMotasRepository repository)
+        public MotasGrpcService(
+            IMotasRepository repository,
+            IDelegationsRepository delegationsRepository)
         {
             _repository = repository;
+            _delegationsRepository = delegationsRepository;
         }
 
         public override async Task<UserDataResponse> GetUserData(UserRequest request, ServerCallContext context)
@@ -165,6 +169,92 @@ namespace MobileUser.Services
             }
 
             return await _repository.UpdateProfileInfoAsync(request.Name, request.Email);
+        }
+
+        public override async Task<DelegationResponse> CreateDelegation(
+    CreateDelegationRequest request,
+    ServerCallContext context)
+        {
+            if (string.IsNullOrWhiteSpace(request.Vin))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
+            }
+
+            if (string.IsNullOrWhiteSpace(request.GuestEmail))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "Email do convidado é obrigatório."));
+            }
+
+            var mota = await _repository.GetMotaInfoAsync(request.Vin);
+
+            if (mota is null)
+            {
+                throw new RpcException(new Status(StatusCode.NotFound, $"Mota com VIN '{request.Vin}' não encontrada."));
+            }
+
+            return await _delegationsRepository.CreateDelegationAsync(request.Vin, request.GuestEmail);
+        }
+
+        public override async Task<DelegationResponse> GetDelegationByInviteToken(
+            InviteTokenRequest request,
+            ServerCallContext context)
+        {
+            if (string.IsNullOrWhiteSpace(request.InviteToken))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "Invite token é obrigatório."));
+            }
+
+            var delegation = await _delegationsRepository.GetByInviteTokenAsync(request.InviteToken);
+
+            if (delegation is null)
+            {
+                throw new RpcException(new Status(StatusCode.NotFound, "Delegação não encontrada."));
+            }
+
+            return delegation;
+        }
+
+        public override async Task<ActionStatus> AcceptDelegation(
+            DelegationDecisionRequest request,
+            ServerCallContext context)
+        {
+            if (string.IsNullOrWhiteSpace(request.InviteToken))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "Invite token é obrigatório."));
+            }
+
+            return await _delegationsRepository.AcceptDelegationAsync(request.InviteToken);
+        }
+
+        public override async Task<ActionStatus> DeclineDelegation(
+            DelegationDecisionRequest request,
+            ServerCallContext context)
+        {
+            if (string.IsNullOrWhiteSpace(request.InviteToken))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "Invite token é obrigatório."));
+            }
+
+            return await _delegationsRepository.DeclineDelegationAsync(request.InviteToken);
+        }
+
+        public override async Task<DelegationListResponse> ListDelegations(
+            MotaRequest request,
+            ServerCallContext context)
+        {
+            if (string.IsNullOrWhiteSpace(request.Vin))
+            {
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
+            }
+
+            var mota = await _repository.GetMotaInfoAsync(request.Vin);
+
+            if (mota is null)
+            {
+                throw new RpcException(new Status(StatusCode.NotFound, $"Mota com VIN '{request.Vin}' não encontrada."));
+            }
+
+            return await _delegationsRepository.ListByVinAsync(request.Vin);
         }
     }
 }
