@@ -6,6 +6,7 @@ using MotoSvcClient = MotoService.MotoService.MotoServiceClient;
 using TelemetrySvcClient = TelemetryService.Grpc.TelemetryService.TelemetryServiceClient;
 using TripsSvcClient = TripsService.Grpc.TripsService.TripsServiceClient;
 using UserSvcClient = UserService.Grpc.UserService.UserServiceClient;
+using NotifSvcClient = NotificationsService.Grpc.NotificationsService.NotificationsServiceClient;
 
 namespace MobileUser.Services
 {
@@ -17,19 +18,22 @@ namespace MobileUser.Services
         private readonly TelemetrySvcClient _telemetryClient;
         private readonly TripsSvcClient _tripsClient;
         private readonly UserSvcClient _userClient;
+        private readonly NotifSvcClient _notificationsClient;
 
         public MotasGrpcService(
             IMotasRepository repository,
             MotoSvcClient motoClient,
             TelemetrySvcClient telemetryClient,
             TripsSvcClient tripsClient,
-            UserSvcClient userClient)
+            UserSvcClient userClient,
+            NotifSvcClient notificationsClient)
         {
             _repository = repository;
             _motoClient = motoClient;
             _telemetryClient = telemetryClient;
             _tripsClient = tripsClient;
             _userClient = userClient;
+            _notificationsClient = notificationsClient;
         }
 
         public override async Task<UserDataResponse> GetUserData(UserRequest request, ServerCallContext context)
@@ -224,8 +228,32 @@ namespace MobileUser.Services
 
         public override async Task<NotificationResponse> GetNotifications(UserRequest request, ServerCallContext context)
         {
-            // TODO Fase 4B: delegar ao NotificationsService com userId
-            return await _repository.GetNotificationsAsync();
+            var userId = ExtractUserId(context);
+
+            NotificationsService.Grpc.NotificationListResponse notifList;
+            try
+            {
+                notifList = await _notificationsClient.GetNotificationsAsync(
+                    new NotificationsService.Grpc.NotificationUserRequest { UserId = userId });
+            }
+            catch (RpcException)
+            {
+                throw new RpcException(new Status(StatusCode.Unavailable, "NotificationsService indisponível."));
+            }
+
+            var response = new NotificationResponse();
+            foreach (var n in notifList.Notifications)
+            {
+                response.Notifications.Add(new AppNotification
+                {
+                    Id = n.Id,
+                    Title = n.Title,
+                    Message = n.Message,
+                    Timestamp = n.CreatedAt,
+                    IsRead = n.IsRead
+                });
+            }
+            return response;
         }
 
         public override async Task<ActionStatus> MarkNotificationAsRead(NotificationIdRequest request, ServerCallContext context)
@@ -233,8 +261,32 @@ namespace MobileUser.Services
             if (string.IsNullOrWhiteSpace(request.NotificationId))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "ID da notificação é obrigatório."));
 
-            // TODO Fase 4B: delegar ao NotificationsService
-            return await _repository.MarkNotificationAsReadAsync(request.NotificationId);
+            var userId = ExtractUserId(context);
+
+            NotificationsService.Grpc.NotificationActionResponse result;
+            try
+            {
+                result = await _notificationsClient.MarkNotificationAsReadAsync(
+                    new NotificationsService.Grpc.NotificationIdRequest
+                    {
+                        NotificationId = request.NotificationId,
+                        UserId = userId
+                    });
+            }
+            catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
+            {
+                return new ActionStatus { Success = false, Message = ex.Status.Detail };
+            }
+            catch (RpcException ex) when (ex.StatusCode == StatusCode.PermissionDenied)
+            {
+                return new ActionStatus { Success = false, Message = ex.Status.Detail };
+            }
+            catch (RpcException)
+            {
+                throw new RpcException(new Status(StatusCode.Unavailable, "NotificationsService indisponível."));
+            }
+
+            return new ActionStatus { Success = result.Success, Message = result.Message };
         }
 
         public override async Task<MaintenanceAgendaResponse> GetMaintenanceAgenda(MotaRequest request, ServerCallContext context)

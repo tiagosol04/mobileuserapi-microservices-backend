@@ -48,6 +48,9 @@ builder.Services.AddGrpcClient<TripsService.Grpc.TripsService.TripsServiceClient
 builder.Services.AddGrpcClient<UserService.Grpc.UserService.UserServiceClient>(o =>
     o.Address = new Uri(builder.Configuration["ServiceAddresses:UserService"]!));
 
+builder.Services.AddGrpcClient<NotificationsService.Grpc.NotificationsService.NotificationsServiceClient>(o =>
+    o.Address = new Uri(builder.Configuration["ServiceAddresses:NotificationsService"]!));
+
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.ListenLocalhost(5048, listenOptions =>

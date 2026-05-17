@@ -11,8 +11,5 @@ namespace MobileUser.Repositories.Interfaces
         Task<MaintenanceAgendaResponse> GetMaintenanceAgendaAsync(string vin);
         Task<ActionStatus> BookMaintenanceServiceAsync(string vin, int maintenanceId, string selectedDate);
 
-        // TODO Fase 4B: mover para NotificationsService
-        Task<NotificationResponse> GetNotificationsAsync();
-        Task<ActionStatus> MarkNotificationAsReadAsync(string notificationId);
     }
 }

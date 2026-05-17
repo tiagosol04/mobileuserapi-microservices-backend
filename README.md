@@ -28,15 +28,16 @@ Cada serviço é um processo independente em .NET 8, comunicando via gRPC (HTTP/
 │ Estado de ligação│   │ Kms totais       │
 └──────────────────┘   └──────────────────┘
 
-┌──────────────────┐
-│   UserService    │
-│   porta 5182     │
-│                  │
-│ Perfil utilizador│
-│ Atualização foto │
-│ Acesso convidados│
-│ UserHasAccessToVin│
-└──────────────────┘
+┌──────────────────┐   ┌───────────────────────┐
+│   UserService    │   │  NotificationsService │
+│   porta 5182     │   │      porta 5183       │
+│                  │   │                       │
+│ Perfil utilizador│   │ Notificações filtradas│
+│ Atualização foto │   │ por userId            │
+│ Acesso convidados│   │ MarkAsRead            │
+│ UserHasAccessToVin│  │ CreateNotification    │
+└──────────────────┘   │ SendPush (mock)       │
+                       └───────────────────────┘
 ```
 
 ---
@@ -50,6 +51,7 @@ Cada serviço é um processo independente em .NET 8, comunicando via gRPC (HTTP/
 | TelemetryService  | 5066      | `telemetry.proto`   | `TelemetryService.Grpc` |
 | TripsService      | 5278      | `trips.proto`       | `TripsService.Grpc`     |
 | UserService       | 5182      | `user.proto`        | `UserService.Grpc`      |
+| NotificationsService | 5183   | `notifications.proto` | `NotificationsService.Grpc` |
 
 Todos os serviços correm exclusivamente em HTTP/2 (Kestrel configurado explicitamente).  
 gRPC Reflection activa apenas em `Development` (para grpcurl / Postman).
@@ -80,9 +82,13 @@ dotnet run
 # Terminal 5
 cd MobileUser/UserService
 dotnet run
+
+# Terminal 6
+cd MobileUser/NotificationsService
+dotnet run
 ```
 
-Ou abre a solução `MobileUser/MobileUser.slnx` no Visual Studio e inicia os 5 projectos.
+Ou abre a solução `MobileUser/MobileUser.slnx` no Visual Studio e inicia os 6 projectos.
 
 ---
 
@@ -227,8 +233,19 @@ VINs disponíveis por omissão:
 - `MotasRepository` reduzido: mantém apenas notificações (TODO Fase 4B) e manutenção (TODO Fase 4C)
 - Dados continuam mock em memória; `MobileUser` continua a ser o único ponto com JWT externo
 
-### Pendente (Fase 4B+)
-- **Fase 4B**: NotificationsService — extrair notificações do MotasRepository, adicionar campos userId/vin/type/priority
+### Fase 4B — Concluída
+- **NotificationsService** criado como microserviço independente (porta 5183, `notifications.proto`, namespace `NotificationsService.Grpc`)
+- Notificações migradas do `MotasRepository` para `NotificationRepository` com campos `UserId`, `Vin` e `Type`
+- Notificações filtradas por `userId`: diana só vê as suas notificações; tiago só vê as suas
+- Dados mock: diana tem 3 notificações (motas 001 e 002); tiago tem 2 notificações (mota 003)
+- `MotasGrpcService` (BFF) delega `GetNotifications` e `MarkNotificationAsRead` ao `NotificationsService`
+  - `GetNotifications` extrai `userId` do JWT e filtra no NotificationsService
+  - `MarkNotificationAsRead` — o BFF extrai o `userId` do JWT e passa-o ao NotificationsService; o NotificationsService valida se a notificação pertence ao utilizador; se não pertencer, devolve `PermissionDenied`; NotFound e PermissionDenied são ambos mapeados para `ActionStatus { success: false }` no BFF
+- `SendPushNotification` é mock; devolve sucesso com mensagem: `"Push notification mock enviada para o utilizador '...': ..."
+- Contrato externo `mota.proto` não foi alterado: `AppNotification` mantém `{id, title, message, timestamp, is_read}` — o BFF faz o mapeamento
+- `MotasRepository` reduzido: mantém apenas manutenção (TODO Fase 4C)
+
+### Pendente (Fase 4C+)
 - **Fase 4C**: MaintenanceService — extrair agenda de manutenção do MotasRepository
 - **Fase 4D**: ChargingService — novo serviço; preenche campos `is_charging`, `battery_cycles`, `charging_time` no MotaResponse
 - **Fase 4E**: FaultsService — novo serviço para erros e avisos da mota

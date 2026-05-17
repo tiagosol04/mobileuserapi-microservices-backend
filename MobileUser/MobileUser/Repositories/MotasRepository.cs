@@ -6,7 +6,7 @@ namespace MobileUser.Repositories
 {
     // Repositório residual do BFF. Contém apenas lógica ainda não migrada para microserviços próprios.
     // Perfil, foto e guest access foram migrados para UserService (Fase 4A).
-    // TODO Fase 4B: mover notificações para NotificationsService.
+    // Notificações foram migradas para NotificationsService (Fase 4B).
     // TODO Fase 4C: mover manutenção para MaintenanceService.
     public class MotasRepository : IMotasRepository
     {
@@ -21,47 +21,10 @@ namespace MobileUser.Repositories
             AssistancePhone = "932222222"
         };
 
-        private readonly List<AppNotification> _notifications;
         private readonly Dictionary<string, List<MaintenanceRecord>> _maintenance;
 
         public MotasRepository()
         {
-            _notifications = new List<AppNotification>
-            {
-                new AppNotification
-                {
-                    Id = "1",
-                    Title = "Bateria fraca",
-                    Message = "A Fulgora X1 Eco está com apenas 5% de bateria.",
-                    Timestamp = DateTimeOffset.UtcNow.AddMinutes(-30).ToUnixTimeSeconds(),
-                    IsRead = false
-                },
-                new AppNotification
-                {
-                    Id = "2",
-                    Title = "Revisão próxima",
-                    Message = "A Fulgora X1 está perto da próxima revisão aos 2000 km.",
-                    Timestamp = DateTimeOffset.UtcNow.AddHours(-2).ToUnixTimeSeconds(),
-                    IsRead = false
-                },
-                new AppNotification
-                {
-                    Id = "3",
-                    Title = "Carregamento iniciado",
-                    Message = "A Fulgora X1 Sport começou a carregar.",
-                    Timestamp = DateTimeOffset.UtcNow.AddHours(-1).ToUnixTimeSeconds(),
-                    IsRead = true
-                },
-                new AppNotification
-                {
-                    Id = "4",
-                    Title = "Mota desconectada",
-                    Message = "A Fulgora X1 Eco perdeu ligação ao servidor.",
-                    Timestamp = DateTimeOffset.UtcNow.AddDays(-1).ToUnixTimeSeconds(),
-                    IsRead = true
-                }
-            };
-
             _maintenance = new Dictionary<string, List<MaintenanceRecord>>(StringComparer.OrdinalIgnoreCase)
             {
                 ["V-FG-2024-X1-001"] = new List<MaintenanceRecord>
@@ -157,55 +120,6 @@ namespace MobileUser.Repositories
                     .FirstOrDefault();
 
                 return Task.FromResult(next?.KmTrigger ?? 0);
-            }
-        }
-
-        public Task<NotificationResponse> GetNotificationsAsync()
-        {
-            lock (_sync)
-            {
-                var response = new NotificationResponse();
-
-                foreach (var notification in _notifications.OrderByDescending(n => n.Timestamp))
-                {
-                    response.Notifications.Add(notification.Clone());
-                }
-
-                return Task.FromResult(response);
-            }
-        }
-
-        public Task<ActionStatus> MarkNotificationAsReadAsync(string notificationId)
-        {
-            lock (_sync)
-            {
-                var notification = _notifications.FirstOrDefault(n => n.Id == notificationId);
-
-                if (notification is null)
-                {
-                    return Task.FromResult(new ActionStatus
-                    {
-                        Success = false,
-                        Message = $"Notificação '{notificationId}' não encontrada."
-                    });
-                }
-
-                if (notification.IsRead)
-                {
-                    return Task.FromResult(new ActionStatus
-                    {
-                        Success = true,
-                        Message = $"Notificação '{notificationId}' já estava marcada como lida."
-                    });
-                }
-
-                notification.IsRead = true;
-
-                return Task.FromResult(new ActionStatus
-                {
-                    Success = true,
-                    Message = $"Notificação {notificationId} marcada como lida."
-                });
             }
         }
 
