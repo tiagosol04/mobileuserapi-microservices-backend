@@ -12,10 +12,10 @@ Cada serviço é um processo independente em .NET 8, comunicando via gRPC (HTTP/
 │   MobileUser     │   │   MotoService    │
 │   porta 5048     │   │   porta 5294     │
 │                  │   │                  │
-│ Perfil utilizador│   │ CRUD de motas    │
-│ Notificações     │   │ Documentos       │
-│ Manutenção       │   │ Validação de VIN │
-│ Acesso convidados│   │                  │
+│ Gateway / BFF    │   │ CRUD de motas    │
+│ JWT Bearer auth  │   │ Documentos       │
+│ Agrega respostas │   │ Validação de VIN │
+│                  │   │                  │
 └──────────────────┘   └──────────────────┘
 
 ┌──────────────────┐   ┌──────────────────┐
@@ -27,18 +27,29 @@ Cada serviço é um processo independente em .NET 8, comunicando via gRPC (HTTP/
 │ Streaming gRPC   │   │ Estatísticas     │
 │ Estado de ligação│   │ Kms totais       │
 └──────────────────┘   └──────────────────┘
+
+┌──────────────────┐
+│   UserService    │
+│   porta 5182     │
+│                  │
+│ Perfil utilizador│
+│ Atualização foto │
+│ Acesso convidados│
+│ UserHasAccessToVin│
+└──────────────────┘
 ```
 
 ---
 
 ## Serviços
 
-| Serviço           | Porto HTTP | Proto               | Namespace gRPC       |
-|-------------------|-----------|---------------------|----------------------|
-| MobileUser        | 5048      | `mota.proto`        | `AMoverGRPC`         |
-| MotoService       | 5294      | `moto.proto`        | `MotoService`        |
+| Serviço           | Porto HTTP | Proto               | Namespace gRPC          |
+|-------------------|-----------|---------------------|-------------------------|
+| MobileUser        | 5048      | `mota.proto`        | `AMoverGRPC`            |
+| MotoService       | 5294      | `moto.proto`        | `MotoService`           |
 | TelemetryService  | 5066      | `telemetry.proto`   | `TelemetryService.Grpc` |
-| TripsService      | 5278      | `trips.proto`       | `TripsService.Grpc`  |
+| TripsService      | 5278      | `trips.proto`       | `TripsService.Grpc`     |
+| UserService       | 5182      | `user.proto`        | `UserService.Grpc`      |
 
 Todos os serviços correm exclusivamente em HTTP/2 (Kestrel configurado explicitamente).  
 gRPC Reflection activa apenas em `Development` (para grpcurl / Postman).
@@ -65,9 +76,13 @@ dotnet run
 # Terminal 4
 cd MobileUser/TripsService
 dotnet run
+
+# Terminal 5
+cd MobileUser/UserService
+dotnet run
 ```
 
-Ou abre a solução `MobileUser/MobileUser.slnx` no Visual Studio e inicia os 4 projectos.
+Ou abre a solução `MobileUser/MobileUser.slnx` no Visual Studio e inicia os 5 projectos.
 
 ---
 
@@ -200,7 +215,21 @@ VINs disponíveis por omissão:
 - Em produção, `/auth/login` seria substituído por integração com IdP externo (Keycloak, Auth0, OIDC)
 - Serviços internos (MotoService, TelemetryService, TripsService) continuam sem JWT: a fronteira de segurança é o MobileUser/BFF; em produção seriam protegidos por rede privada ou mTLS
 
-### Pendente (Fase 4+)
-- **Campos sem fonte de dados**: `is_charging`, `battery_health`, `battery_cycles`, `charging_time` não existem nos protos actuais dos serviços downstream — devolvem valores por omissão até TelemetryService ser alargado.
-- **Base de dados**: substituir repositórios em memória por persistência real.
-- **Autenticação real**: substituir `/auth/login` mock por integração com IdP externo (Keycloak, OIDC).
+### Fase 4A — Concluída
+- **UserService** criado como microserviço independente (porta 5182, `user.proto`, namespace `UserService.Grpc`)
+- Perfil de utilizador, atualização de perfil e foto de perfil migrados do `MotasRepository` para `UserService`
+- Gestão de guest access (AddGuestAccess, RemoveGuestAccess, ListGuestAccess) migrada para `UserService`
+- `UserHasAccessToVin` implementado no `UserService` como fonte de verdade para controlo de acesso por VIN
+  - Verifica ownership (userId → VINs) e guest access ativo (por email do utilizador)
+  - Substitui a verificação anterior via `MotoService.ListMotosByUser`
+- `MotasGrpcService` (BFF) passa a chamar `UserService` para todas as operações de utilizador e permissões
+- `GetUserData` obtém perfil do `UserService.GetUserProfile` em vez de construir a partir dos claims JWT
+- `MotasRepository` reduzido: mantém apenas notificações (TODO Fase 4B) e manutenção (TODO Fase 4C)
+- Dados continuam mock em memória; `MobileUser` continua a ser o único ponto com JWT externo
+
+### Pendente (Fase 4B+)
+- **Fase 4B**: NotificationsService — extrair notificações do MotasRepository, adicionar campos userId/vin/type/priority
+- **Fase 4C**: MaintenanceService — extrair agenda de manutenção do MotasRepository
+- **Fase 4D**: ChargingService — novo serviço; preenche campos `is_charging`, `battery_cycles`, `charging_time` no MotaResponse
+- **Fase 4E**: FaultsService — novo serviço para erros e avisos da mota
+- **Fase 5**: Substituir repositórios em memória por base de dados real; substituir `/auth/login` mock por IdP externo

@@ -4,21 +4,15 @@ namespace MobileUser.Repositories.Interfaces
 {
     public interface IMotasRepository
     {
-        Task<UserProfile> GetUserProfileAsync();
         Task<DealershipInfo> GetDealershipInfoAsync();
+
+        // TODO Fase 4C: mover para MaintenanceService
         Task<int> GetNextServiceKmAsync(string vin);
-
-        Task<ActionStatus> AddGuestAccessAsync(string vin, string guestEmail);
-        Task<ActionStatus> RemoveGuestAccessAsync(string vin, string guestEmail);
-        Task<GuestListResponse> ListGuestAccessAsync(string vin);
-
-        Task<NotificationResponse> GetNotificationsAsync();
-        Task<ActionStatus> MarkNotificationAsReadAsync(string notificationId);
-
         Task<MaintenanceAgendaResponse> GetMaintenanceAgendaAsync(string vin);
         Task<ActionStatus> BookMaintenanceServiceAsync(string vin, int maintenanceId, string selectedDate);
 
-        Task<ActionStatus> UpdateProfilePhotoAsync(byte[] imageData, string fileExtension);
-        Task<ActionStatus> UpdateProfileInfoAsync(string name, string email);
+        // TODO Fase 4B: mover para NotificationsService
+        Task<NotificationResponse> GetNotificationsAsync();
+        Task<ActionStatus> MarkNotificationAsReadAsync(string notificationId);
     }
 }

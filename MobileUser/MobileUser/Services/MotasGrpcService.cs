@@ -5,6 +5,7 @@ using MobileUser.Repositories.Interfaces;
 using MotoSvcClient = MotoService.MotoService.MotoServiceClient;
 using TelemetrySvcClient = TelemetryService.Grpc.TelemetryService.TelemetryServiceClient;
 using TripsSvcClient = TripsService.Grpc.TripsService.TripsServiceClient;
+using UserSvcClient = UserService.Grpc.UserService.UserServiceClient;
 
 namespace MobileUser.Services
 {
@@ -15,23 +16,46 @@ namespace MobileUser.Services
         private readonly MotoSvcClient _motoClient;
         private readonly TelemetrySvcClient _telemetryClient;
         private readonly TripsSvcClient _tripsClient;
+        private readonly UserSvcClient _userClient;
 
         public MotasGrpcService(
             IMotasRepository repository,
             MotoSvcClient motoClient,
             TelemetrySvcClient telemetryClient,
-            TripsSvcClient tripsClient)
+            TripsSvcClient tripsClient,
+            UserSvcClient userClient)
         {
             _repository = repository;
             _motoClient = motoClient;
             _telemetryClient = telemetryClient;
             _tripsClient = tripsClient;
+            _userClient = userClient;
         }
 
         public override async Task<UserDataResponse> GetUserData(UserRequest request, ServerCallContext context)
         {
             var userId = ExtractUserId(context);
-            var profile = BuildUserProfileFromClaims(context);
+
+            // Perfil obtido do UserService (Fase 4A)
+            UserService.Grpc.UserProfileResponse userProfile;
+            try
+            {
+                userProfile = await _userClient.GetUserProfileAsync(
+                    new UserService.Grpc.UserProfileRequest { UserId = userId });
+            }
+            catch (RpcException)
+            {
+                throw new RpcException(new Status(StatusCode.Unavailable, "UserService indisponível."));
+            }
+
+            var profile = new UserProfile
+            {
+                Name = userProfile.Name,
+                Email = userProfile.Email,
+                Username = userProfile.Username,
+                PhotoUri = userProfile.PhotoUri
+            };
+
             var dealership = await _repository.GetDealershipInfoAsync();
 
             var response = new UserDataResponse
@@ -75,21 +99,25 @@ namespace MobileUser.Services
 
             var userId = ExtractUserId(context);
 
-            MotoService.MotoListResponse motoList;
+            // Validação de acesso via UserService (Fase 4A)
+            await ValidateVinOwnershipAsync(request.Vin, userId);
+
+            // Dados da mota via MotoService
+            MotoService.MotoResponse moto;
             try
             {
-                motoList = await _motoClient.ListMotosByUserAsync(
-                    new MotoService.UserMotosRequest { UserId = userId });
+                moto = await _motoClient.GetMotoByVinAsync(
+                    new MotoService.MotoRequest { Vin = request.Vin });
+            }
+            catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
+            {
+                throw new RpcException(new Status(StatusCode.NotFound,
+                    $"Mota '{request.Vin}' não encontrada."));
             }
             catch (RpcException)
             {
                 throw new RpcException(new Status(StatusCode.Unavailable, "MotoService indisponível."));
             }
-
-            var moto = motoList.Motos.FirstOrDefault(m => m.Vin == request.Vin);
-            if (moto is null)
-                throw new RpcException(new Status(StatusCode.PermissionDenied,
-                    $"Sem permissão para aceder à mota '{request.Vin}'."));
 
             var telemetryTask = TryCallAsync(() =>
                 _telemetryClient.GetLatestTelemetryAsync(
@@ -110,28 +138,56 @@ namespace MobileUser.Services
         {
             if (string.IsNullOrWhiteSpace(request.Vin))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
-
             if (string.IsNullOrWhiteSpace(request.GuestEmail))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "Email do convidado é obrigatório."));
 
             var userId = ExtractUserId(context);
             await ValidateVinOwnershipAsync(request.Vin, userId);
 
-            return await _repository.AddGuestAccessAsync(request.Vin, request.GuestEmail);
+            UserService.Grpc.ActionStatus result;
+            try
+            {
+                result = await _userClient.AddGuestAccessAsync(new UserService.Grpc.GuestAccessRequest
+                {
+                    Vin = request.Vin,
+                    OwnerUserId = userId,
+                    GuestEmail = request.GuestEmail
+                });
+            }
+            catch (RpcException)
+            {
+                throw new RpcException(new Status(StatusCode.Unavailable, "UserService indisponível."));
+            }
+
+            return new ActionStatus { Success = result.Success, Message = result.Message };
         }
 
         public override async Task<ActionStatus> RemoveGuestAccess(GuestAccessRequest request, ServerCallContext context)
         {
             if (string.IsNullOrWhiteSpace(request.Vin))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
-
             if (string.IsNullOrWhiteSpace(request.GuestEmail))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "Email do convidado é obrigatório."));
 
             var userId = ExtractUserId(context);
             await ValidateVinOwnershipAsync(request.Vin, userId);
 
-            return await _repository.RemoveGuestAccessAsync(request.Vin, request.GuestEmail);
+            UserService.Grpc.ActionStatus result;
+            try
+            {
+                result = await _userClient.RemoveGuestAccessAsync(new UserService.Grpc.GuestAccessRequest
+                {
+                    Vin = request.Vin,
+                    OwnerUserId = userId,
+                    GuestEmail = request.GuestEmail
+                });
+            }
+            catch (RpcException)
+            {
+                throw new RpcException(new Status(StatusCode.Unavailable, "UserService indisponível."));
+            }
+
+            return new ActionStatus { Success = result.Success, Message = result.Message };
         }
 
         public override async Task<GuestListResponse> ListGuestAccess(MotaRequest request, ServerCallContext context)
@@ -142,11 +198,33 @@ namespace MobileUser.Services
             var userId = ExtractUserId(context);
             await ValidateVinOwnershipAsync(request.Vin, userId);
 
-            return await _repository.ListGuestAccessAsync(request.Vin);
+            UserService.Grpc.GuestListResponse userGuestList;
+            try
+            {
+                userGuestList = await _userClient.ListGuestAccessAsync(new UserService.Grpc.GuestListRequest
+                {
+                    Vin = request.Vin,
+                    OwnerUserId = userId
+                });
+            }
+            catch (RpcException)
+            {
+                throw new RpcException(new Status(StatusCode.Unavailable, "UserService indisponível."));
+            }
+
+            var response = new GuestListResponse();
+            response.GuestEmails.AddRange(
+                userGuestList.Entries
+                    .Where(e => e.IsActive)
+                    .Select(e => e.GuestEmail)
+                    .OrderBy(e => e));
+
+            return response;
         }
 
         public override async Task<NotificationResponse> GetNotifications(UserRequest request, ServerCallContext context)
         {
+            // TODO Fase 4B: delegar ao NotificationsService com userId
             return await _repository.GetNotificationsAsync();
         }
 
@@ -155,6 +233,7 @@ namespace MobileUser.Services
             if (string.IsNullOrWhiteSpace(request.NotificationId))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "ID da notificação é obrigatório."));
 
+            // TODO Fase 4B: delegar ao NotificationsService
             return await _repository.MarkNotificationAsReadAsync(request.NotificationId);
         }
 
@@ -166,6 +245,7 @@ namespace MobileUser.Services
             var userId = ExtractUserId(context);
             await ValidateVinOwnershipAsync(request.Vin, userId);
 
+            // TODO Fase 4C: delegar ao MaintenanceService
             return await _repository.GetMaintenanceAgendaAsync(request.Vin);
         }
 
@@ -173,13 +253,10 @@ namespace MobileUser.Services
         {
             if (string.IsNullOrWhiteSpace(request.Vin))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
-
             if (request.MaintenanceId <= 0)
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "O ID da manutenção é inválido."));
-
             if (string.IsNullOrWhiteSpace(request.SelectedDate))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "Data é obrigatória."));
-
             if (!DateOnly.TryParse(request.SelectedDate, out _))
                 throw new RpcException(new Status(StatusCode.InvalidArgument,
                     "A data deve estar num formato válido (ex: 2026-05-10)."));
@@ -187,6 +264,7 @@ namespace MobileUser.Services
             var userId = ExtractUserId(context);
             await ValidateVinOwnershipAsync(request.Vin, userId);
 
+            // TODO Fase 4C: delegar ao MaintenanceService
             return await _repository.BookMaintenanceServiceAsync(
                 request.Vin, request.MaintenanceId, request.SelectedDate);
         }
@@ -195,38 +273,72 @@ namespace MobileUser.Services
         {
             if (request.ImageData == null || request.ImageData.IsEmpty)
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "Dados da imagem são obrigatórios."));
-
             if (string.IsNullOrWhiteSpace(request.FileExtension))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "Extensão do ficheiro é obrigatória."));
 
-            return await _repository.UpdateProfilePhotoAsync(request.ImageData.ToByteArray(), request.FileExtension);
+            var userId = ExtractUserId(context);
+
+            UserService.Grpc.ActionStatus result;
+            try
+            {
+                result = await _userClient.UpdateProfilePhotoAsync(new UserService.Grpc.UpdateProfilePhotoRequest
+                {
+                    UserId = userId,
+                    ImageData = request.ImageData,
+                    FileExtension = request.FileExtension
+                });
+            }
+            catch (RpcException)
+            {
+                throw new RpcException(new Status(StatusCode.Unavailable, "UserService indisponível."));
+            }
+
+            return new ActionStatus { Success = result.Success, Message = result.Message };
         }
 
         public override async Task<ActionStatus> UpdateProfileInfo(UpdateProfileInfoRequest request, ServerCallContext context)
         {
             if (string.IsNullOrWhiteSpace(request.Name))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "Nome é obrigatório."));
-
             if (string.IsNullOrWhiteSpace(request.Email))
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "Email é obrigatório."));
 
-            return await _repository.UpdateProfileInfoAsync(request.Name, request.Email);
-        }
+            var userId = ExtractUserId(context);
 
-        private async Task ValidateVinOwnershipAsync(string vin, string userId)
-        {
-            MotoService.MotoListResponse motoList;
+            UserService.Grpc.ActionStatus result;
             try
             {
-                motoList = await _motoClient.ListMotosByUserAsync(
-                    new MotoService.UserMotosRequest { UserId = userId });
+                result = await _userClient.UpdateProfileInfoAsync(new UserService.Grpc.UpdateProfileInfoRequest
+                {
+                    UserId = userId,
+                    Name = request.Name,
+                    Email = request.Email
+                });
             }
             catch (RpcException)
             {
-                throw new RpcException(new Status(StatusCode.Unavailable, "MotoService indisponível."));
+                throw new RpcException(new Status(StatusCode.Unavailable, "UserService indisponível."));
             }
 
-            if (!motoList.Motos.Any(m => m.Vin == vin))
+            return new ActionStatus { Success = result.Success, Message = result.Message };
+        }
+
+        // Usa UserService como fonte de verdade para acesso por VIN (Fase 4A).
+        // Substitui a verificação anterior via MotoService.ListMotosByUser.
+        private async Task ValidateVinOwnershipAsync(string vin, string userId)
+        {
+            UserService.Grpc.AccessCheckResponse accessCheck;
+            try
+            {
+                accessCheck = await _userClient.UserHasAccessToVinAsync(
+                    new UserService.Grpc.AccessCheckRequest { UserId = userId, Vin = vin });
+            }
+            catch (RpcException)
+            {
+                throw new RpcException(new Status(StatusCode.Unavailable, "UserService indisponível."));
+            }
+
+            if (!accessCheck.HasAccess)
                 throw new RpcException(new Status(StatusCode.PermissionDenied,
                     $"Sem permissão para aceder à mota '{vin}'."));
         }
@@ -237,18 +349,6 @@ namespace MobileUser.Services
             if (string.IsNullOrEmpty(userId))
                 throw new RpcException(new Status(StatusCode.Unauthenticated, "Utilizador não autenticado."));
             return userId;
-        }
-
-        private static UserProfile BuildUserProfileFromClaims(ServerCallContext context)
-        {
-            var user = context.GetHttpContext().User;
-            return new UserProfile
-            {
-                Name = user.FindFirst("name")?.Value ?? "",
-                Email = user.FindFirst("email")?.Value ?? "",
-                Username = user.FindFirst("preferred_username")?.Value ?? "",
-                PhotoUri = ""
-            };
         }
 
         private static MotaResponse BuildMotaResponse(

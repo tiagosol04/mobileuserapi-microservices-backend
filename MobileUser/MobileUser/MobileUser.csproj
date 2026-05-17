@@ -22,6 +22,7 @@
 		<Protobuf Include="..\MotoService\Protos\moto.proto" GrpcServices="Client" Link="Protos\moto.proto" />
 		<Protobuf Include="..\TelemetryService\Protos\telemetry.proto" GrpcServices="Client" Link="Protos\telemetry.proto" />
 		<Protobuf Include="..\TripsService\Protos\trips.proto" GrpcServices="Client" Link="Protos\trips.proto" />
+		<Protobuf Include="..\UserService\Protos\user.proto" GrpcServices="Client" Link="Protos\user.proto" />
 	</ItemGroup>
 
 </Project>

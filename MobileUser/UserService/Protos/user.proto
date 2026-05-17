@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+option csharp_namespace = "UserService.Grpc";
+
+package user;
+
+message UserProfileRequest {
+  string user_id = 1;
+}
+
+message UserProfileResponse {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  string username = 4;
+  string photo_uri = 5;
+  string phone_number = 6;
+  int64 created_at = 7;
+}
+
+message UpdateProfileInfoRequest {
+  string user_id = 1;
+  string name = 2;
+  string email = 3;
+}
+
+message UpdateProfilePhotoRequest {
+  string user_id = 1;
+  bytes image_data = 2;
+  string file_extension = 3;
+}
+
+message GuestAccessRequest {
+  string vin = 1;
+  string owner_user_id = 2;
+  string guest_email = 3;
+}
+
+message GuestListRequest {
+  string vin = 1;
+  string owner_user_id = 2;
+}
+
+message GuestAccessEntry {
+  int32 id = 1;
+  string vin = 2;
+  string owner_user_id = 3;
+  string guest_email = 4;
+  string permission_type = 5;
+  int64 created_at = 6;
+  bool is_active = 7;
+}
+
+message GuestListResponse {
+  repeated GuestAccessEntry entries = 1;
+}
+
+message AccessCheckRequest {
+  string user_id = 1;
+  string vin = 2;
+}
+
+message AccessCheckResponse {
+  bool has_access = 1;
+}
+
+message ActionStatus {
+  bool success = 1;
+  string message = 2;
+}
+
+service UserService {
+  rpc GetUserProfile (UserProfileRequest) returns (UserProfileResponse);
+  rpc UpdateProfileInfo (UpdateProfileInfoRequest) returns (ActionStatus);
+  rpc UpdateProfilePhoto (UpdateProfilePhotoRequest) returns (ActionStatus);
+  rpc AddGuestAccess (GuestAccessRequest) returns (ActionStatus);
+  rpc RemoveGuestAccess (GuestAccessRequest) returns (ActionStatus);
+  rpc ListGuestAccess (GuestListRequest) returns (GuestListResponse);
+  rpc UserHasAccessToVin (AccessCheckRequest) returns (AccessCheckResponse);
+}

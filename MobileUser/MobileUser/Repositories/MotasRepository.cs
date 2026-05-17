@@ -4,17 +4,13 @@ using MobileUser.Repositories.Interfaces;
 
 namespace MobileUser.Repositories
 {
+    // Repositório residual do BFF. Contém apenas lógica ainda não migrada para microserviços próprios.
+    // Perfil, foto e guest access foram migrados para UserService (Fase 4A).
+    // TODO Fase 4B: mover notificações para NotificationsService.
+    // TODO Fase 4C: mover manutenção para MaintenanceService.
     public class MotasRepository : IMotasRepository
     {
         private readonly object _sync = new();
-
-        private UserProfile _profile = new UserProfile
-        {
-            Name = "Diana",
-            Email = "diana@email.com",
-            PhotoUri = "https://picsum.photos/200",
-            Username = "diana.user"
-        };
 
         private readonly DealershipInfo _dealership = new DealershipInfo
         {
@@ -25,19 +21,11 @@ namespace MobileUser.Repositories
             AssistancePhone = "932222222"
         };
 
-        private readonly Dictionary<string, List<string>> _guests;
         private readonly List<AppNotification> _notifications;
         private readonly Dictionary<string, List<MaintenanceRecord>> _maintenance;
 
         public MotasRepository()
         {
-            _guests = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["V-FG-2024-X1-001"] = new List<string> { "guest1@email.com", "guest2@email.com" },
-                ["V-FG-2024-X1-002"] = new List<string> { "amigo@email.com" },
-                ["V-FG-2024-X1-003"] = new List<string>()
-            };
-
             _notifications = new List<AppNotification>
             {
                 new AppNotification
@@ -148,14 +136,6 @@ namespace MobileUser.Repositories
             };
         }
 
-        public Task<UserProfile> GetUserProfileAsync()
-        {
-            lock (_sync)
-            {
-                return Task.FromResult(_profile.Clone());
-            }
-        }
-
         public Task<DealershipInfo> GetDealershipInfoAsync()
         {
             lock (_sync)
@@ -177,96 +157,6 @@ namespace MobileUser.Repositories
                     .FirstOrDefault();
 
                 return Task.FromResult(next?.KmTrigger ?? 0);
-            }
-        }
-
-        public Task<ActionStatus> AddGuestAccessAsync(string vin, string guestEmail)
-        {
-            lock (_sync)
-            {
-                if (!IsValidEmail(guestEmail))
-                {
-                    return Task.FromResult(new ActionStatus
-                    {
-                        Success = false,
-                        Message = "Email inválido."
-                    });
-                }
-
-                if (!_guests.ContainsKey(vin))
-                {
-                    _guests[vin] = new List<string>();
-                }
-
-                var alreadyExists = _guests[vin]
-                    .Any(email => string.Equals(email, guestEmail, StringComparison.OrdinalIgnoreCase));
-
-                if (alreadyExists)
-                {
-                    return Task.FromResult(new ActionStatus
-                    {
-                        Success = false,
-                        Message = $"O email '{guestEmail}' já tem acesso a esta mota."
-                    });
-                }
-
-                _guests[vin].Add(guestEmail);
-
-                return Task.FromResult(new ActionStatus
-                {
-                    Success = true,
-                    Message = $"Acesso atribuído ao email {guestEmail} para a mota {vin}."
-                });
-            }
-        }
-
-        public Task<ActionStatus> RemoveGuestAccessAsync(string vin, string guestEmail)
-        {
-            lock (_sync)
-            {
-                if (!_guests.ContainsKey(vin))
-                {
-                    return Task.FromResult(new ActionStatus
-                    {
-                        Success = false,
-                        Message = $"Não existem convidados para a mota '{vin}'."
-                    });
-                }
-
-                var existingEmail = _guests[vin]
-                    .FirstOrDefault(email => string.Equals(email, guestEmail, StringComparison.OrdinalIgnoreCase));
-
-                if (existingEmail is null)
-                {
-                    return Task.FromResult(new ActionStatus
-                    {
-                        Success = false,
-                        Message = $"O email '{guestEmail}' não tinha acesso a esta mota."
-                    });
-                }
-
-                _guests[vin].Remove(existingEmail);
-
-                return Task.FromResult(new ActionStatus
-                {
-                    Success = true,
-                    Message = $"Acesso removido ao email {guestEmail} para a mota {vin}."
-                });
-            }
-        }
-
-        public Task<GuestListResponse> ListGuestAccessAsync(string vin)
-        {
-            lock (_sync)
-            {
-                var response = new GuestListResponse();
-
-                if (_guests.TryGetValue(vin, out var list))
-                {
-                    response.GuestEmails.AddRange(list.OrderBy(email => email));
-                }
-
-                return Task.FromResult(response);
             }
         }
 
@@ -386,100 +276,6 @@ namespace MobileUser.Repositories
                     Message = $"Serviço '{record.Title}' agendado para {selectedDate}."
                 });
             }
-        }
-
-        public Task<ActionStatus> UpdateProfilePhotoAsync(byte[] imageData, string fileExtension)
-        {
-            lock (_sync)
-            {
-                if (imageData == null || imageData.Length == 0)
-                {
-                    return Task.FromResult(new ActionStatus
-                    {
-                        Success = false,
-                        Message = "Dados da imagem estão vazios."
-                    });
-                }
-
-                if (string.IsNullOrWhiteSpace(fileExtension))
-                {
-                    return Task.FromResult(new ActionStatus
-                    {
-                        Success = false,
-                        Message = "Extensão do ficheiro é obrigatória."
-                    });
-                }
-
-                var normalizedExtension = fileExtension.Trim().ToLowerInvariant();
-                if (!normalizedExtension.StartsWith("."))
-                    normalizedExtension = "." + normalizedExtension;
-
-                var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
-
-                if (!allowedExtensions.Contains(normalizedExtension))
-                {
-                    return Task.FromResult(new ActionStatus
-                    {
-                        Success = false,
-                        Message = $"Extensão '{fileExtension}' não é permitida. Usa: .jpg, .jpeg, .png, .webp."
-                    });
-                }
-
-                _profile.PhotoUri = $"https://picsum.photos/200?updated={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
-
-                return Task.FromResult(new ActionStatus
-                {
-                    Success = true,
-                    Message = $"Foto de perfil atualizada ({imageData.Length} bytes, {normalizedExtension})."
-                });
-            }
-        }
-
-        public Task<ActionStatus> UpdateProfileInfoAsync(string name, string email)
-        {
-            lock (_sync)
-            {
-                if (string.IsNullOrWhiteSpace(name))
-                {
-                    return Task.FromResult(new ActionStatus
-                    {
-                        Success = false,
-                        Message = "Nome é obrigatório."
-                    });
-                }
-
-                if (!IsValidEmail(email))
-                {
-                    return Task.FromResult(new ActionStatus
-                    {
-                        Success = false,
-                        Message = "Email inválido."
-                    });
-                }
-
-                _profile.Name = name.Trim();
-                _profile.Email = email.Trim();
-
-                return Task.FromResult(new ActionStatus
-                {
-                    Success = true,
-                    Message = $"Perfil atualizado: {_profile.Name} / {_profile.Email}."
-                });
-            }
-        }
-
-        private static bool IsValidEmail(string? email)
-        {
-            if (string.IsNullOrWhiteSpace(email))
-                return false;
-
-            var trimmed = email.Trim();
-
-            if (trimmed.Contains(' '))
-                return false;
-
-            var atIndex = trimmed.IndexOf('@');
-            return atIndex > 0 && atIndex < trimmed.Length - 1;
         }
     }
 }
