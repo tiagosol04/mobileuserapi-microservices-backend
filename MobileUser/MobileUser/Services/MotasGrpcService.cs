@@ -8,6 +8,7 @@ using TripsSvcClient = TripsService.Grpc.TripsService.TripsServiceClient;
 using UserSvcClient = UserService.Grpc.UserService.UserServiceClient;
 using NotifSvcClient = NotificationsService.Grpc.NotificationsService.NotificationsServiceClient;
 using MaintenSvcClient = MaintenanceService.Grpc.MaintenanceService.MaintenanceServiceClient;
+using ChargingSvcClient = ChargingService.Grpc.ChargingService.ChargingServiceClient;
 
 namespace MobileUser.Services
 {
@@ -21,6 +22,7 @@ namespace MobileUser.Services
         private readonly UserSvcClient _userClient;
         private readonly NotifSvcClient _notificationsClient;
         private readonly MaintenSvcClient _maintenanceClient;
+        private readonly ChargingSvcClient _chargingClient;
 
         public MotasGrpcService(
             IDealershipRepository dealershipRepository,
@@ -29,7 +31,8 @@ namespace MobileUser.Services
             TripsSvcClient tripsClient,
             UserSvcClient userClient,
             NotifSvcClient notificationsClient,
-            MaintenSvcClient maintenanceClient)
+            MaintenSvcClient maintenanceClient,
+            ChargingSvcClient chargingClient)
         {
             _dealershipRepository = dealershipRepository;
             _motoClient = motoClient;
@@ -38,6 +41,7 @@ namespace MobileUser.Services
             _userClient = userClient;
             _notificationsClient = notificationsClient;
             _maintenanceClient = maintenanceClient;
+            _chargingClient = chargingClient;
         }
 
         public override async Task<UserDataResponse> GetUserData(UserRequest request, ServerCallContext context)
@@ -104,7 +108,16 @@ namespace MobileUser.Services
                 }
                 catch (RpcException) { }
 
-                response.Bikes.Add(BuildMotaResponse(moto, telemetry, null, nextServiceKm));
+                // Estado de carregamento obtido do ChargingService (Fase 4D) — tolerante a falha
+                ChargingService.Grpc.ChargingStatusResponse? charging = null;
+                try
+                {
+                    charging = await _chargingClient.GetChargingStatusAsync(
+                        new ChargingService.Grpc.ChargingVinRequest { UserId = userId, Vin = moto.Vin });
+                }
+                catch (RpcException) { }
+
+                response.Bikes.Add(BuildMotaResponse(moto, telemetry, null, nextServiceKm, charging));
             }
 
             return response;
@@ -137,6 +150,7 @@ namespace MobileUser.Services
                 throw new RpcException(new Status(StatusCode.Unavailable, "MotoService indisponível."));
             }
 
+            // Telemetria, viagens e carregamento em paralelo — todos tolerantes a falha
             var telemetryTask = TryCallAsync(() =>
                 _telemetryClient.GetLatestTelemetryAsync(
                     new TelemetryService.Grpc.TelemetryRequest { Vin = request.Vin }).ResponseAsync);
@@ -145,7 +159,11 @@ namespace MobileUser.Services
                 _tripsClient.GetTripStatisticsAsync(
                     new TripsService.Grpc.TripVinRequest { Vin = request.Vin }).ResponseAsync);
 
-            await Task.WhenAll(telemetryTask, tripsTask);
+            var chargingTask = TryCallAsync(() =>
+                _chargingClient.GetChargingStatusAsync(
+                    new ChargingService.Grpc.ChargingVinRequest { UserId = userId, Vin = request.Vin }).ResponseAsync);
+
+            await Task.WhenAll(telemetryTask, tripsTask, chargingTask);
 
             // Próxima revisão obtida do MaintenanceService (Fase 4C) — tolerante a falha
             var nextServiceKm = 0;
@@ -157,7 +175,7 @@ namespace MobileUser.Services
             }
             catch (RpcException) { }
 
-            return BuildMotaResponse(moto, telemetryTask.Result, tripsTask.Result, nextServiceKm);
+            return BuildMotaResponse(moto, telemetryTask.Result, tripsTask.Result, nextServiceKm, chargingTask.Result);
         }
 
         public override async Task<ActionStatus> AddGuestAccess(GuestAccessRequest request, ServerCallContext context)
@@ -473,7 +491,8 @@ namespace MobileUser.Services
             MotoService.MotoResponse moto,
             TelemetryService.Grpc.TelemetryResponse? telemetry,
             TripsService.Grpc.TripStatisticsResponse? tripStats,
-            int nextServiceKm)
+            int nextServiceKm,
+            ChargingService.Grpc.ChargingStatusResponse? charging = null)
         {
             var response = new MotaResponse
             {
@@ -499,7 +518,13 @@ namespace MobileUser.Services
 
                 EnergyConsumptionAvg = tripStats?.EnergyConsumptionAvg ?? 0,
 
-                NextServiceKm = nextServiceKm
+                NextServiceKm = nextServiceKm,
+
+                // Campos de carregamento preenchidos pelo ChargingService (Fase 4D)
+                IsCharging = charging?.IsCharging ?? false,
+                BatteryHealth = charging?.BatteryHealth ?? string.Empty,
+                BatteryCycles = charging?.BatteryCycles ?? 0,
+                ChargingTime = charging?.ChargingTime ?? string.Empty
             };
 
             foreach (var doc in moto.Documents)

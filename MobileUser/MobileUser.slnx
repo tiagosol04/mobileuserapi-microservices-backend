@@ -6,4 +6,5 @@
   <Project Path="UserService/UserService.csproj" Id="b9f7d2c1-3a8e-4f05-9c6b-7e1234567891" />
   <Project Path="NotificationsService/NotificationsService.csproj" Id="d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f90" />
   <Project Path="MaintenanceService/MaintenanceService.csproj" Id="c1d2e3f4-5a6b-7c8d-9e0f-1a2b3c4d5e6f" />
+  <Project Path="ChargingService/ChargingService.csproj" Id="e7f8a9b0-1c2d-3e4f-5a6b-7c8d9e0f1a2b" />
 </Solution>

@@ -54,6 +54,9 @@ builder.Services.AddGrpcClient<NotificationsService.Grpc.NotificationsService.No
 builder.Services.AddGrpcClient<MaintenanceService.Grpc.MaintenanceService.MaintenanceServiceClient>(o =>
     o.Address = new Uri(builder.Configuration["ServiceAddresses:MaintenanceService"]!));
 
+builder.Services.AddGrpcClient<ChargingService.Grpc.ChargingService.ChargingServiceClient>(o =>
+    o.Address = new Uri(builder.Configuration["ServiceAddresses:ChargingService"]!));
+
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.ListenLocalhost(5048, listenOptions =>

@@ -39,14 +39,16 @@ Cada serviço é um processo independente em .NET 8, comunicando via gRPC (HTTP/
 └──────────────────┘   │ SendPush (mock)       │
                        └───────────────────────┘
 
-┌──────────────────────┐
-│  MaintenanceService  │
-│     porta 5184       │
-│                      │
-│ Agenda de manutenção │
-│ Agendamento serviço  │
-│ Próxima revisão (km) │
-└──────────────────────┘
+┌──────────────────────┐   ┌──────────────────────┐
+│  MaintenanceService  │   │   ChargingService    │
+│     porta 5184       │   │     porta 5185       │
+│                      │   │                      │
+│ Agenda de manutenção │   │ Estado de carga      │
+│ Agendamento serviço  │   │ Histórico de sessões │
+│ Próxima revisão (km) │   │ Ciclos de bateria    │
+└──────────────────────┘   │ Tempo restante carga │
+                           │ Início/fim sessão    │
+                           └──────────────────────┘
 ```
 
 ---
@@ -62,6 +64,7 @@ Cada serviço é um processo independente em .NET 8, comunicando via gRPC (HTTP/
 | UserService       | 5182      | `user.proto`        | `UserService.Grpc`      |
 | NotificationsService | 5183   | `notifications.proto` | `NotificationsService.Grpc` |
 | MaintenanceService | 5184   | `maintenance.proto` | `MaintenanceService.Grpc` |
+| ChargingService   | 5185   | `charging.proto`    | `ChargingService.Grpc`   |
 
 Todos os serviços correm exclusivamente em HTTP/2 (Kestrel configurado explicitamente).  
 gRPC Reflection activa apenas em `Development` (para grpcurl / Postman).
@@ -100,9 +103,13 @@ dotnet run
 # Terminal 7
 cd MobileUser/MaintenanceService
 dotnet run
+
+# Terminal 8
+cd MobileUser/ChargingService
+dotnet run
 ```
 
-Ou abre a solução `MobileUser/MobileUser.slnx` no Visual Studio e inicia os 7 projectos.
+Ou abre a solução `MobileUser/MobileUser.slnx` no Visual Studio e inicia os 8 projectos.
 
 ---
 
@@ -274,7 +281,20 @@ VINs disponíveis por omissão:
 - Contrato externo `mota.proto` não foi alterado: `AppNotification` mantém `{id, title, message, timestamp, is_read}` — o BFF faz o mapeamento
 - `MotasRepository` reduzido: mantém apenas manutenção (TODO Fase 4C)
 
-### Pendente (Fase 4D+)
-- **Fase 4D**: ChargingService — novo serviço; preenche campos `is_charging`, `battery_cycles`, `charging_time` no MotaResponse
+### Fase 4D — Concluída
+- **ChargingService** criado como microserviço independente (porta 5185, `charging.proto`, namespace `ChargingService.Grpc`)
+- ChargingService trata **apenas carregamento**: estado de carga, histórico de sessões, ciclos de bateria, tempo restante de carga, início e fim de sessão
+- `MotasGrpcService` (BFF) integra `ChargingService` em dois pontos:
+  - `GetUserData`: chama `GetChargingStatus` por cada mota — tolerante a falha (devolve valores por omissão se indisponível)
+  - `GetMotaInfo`: chama `GetChargingStatus` em paralelo com TelemetryService e TripsService via `TryCallAsync`
+- Campos do `MotaResponse` preenchidos a partir do `ChargingService`: `is_charging`, `battery_health`, `battery_cycles`, `charging_time`
+- `StartChargingSession` e `EndChargingSession` tratados como **registo de sessão mock** — não emitem comandos físicos ao veículo
+- Todas as chamadas ao `ChargingService` passam `user_id + vin`; o serviço valida ambos antes de processar
+- O BFF continua a validar `userId + VIN` via `UserService.UserHasAccessToVin` antes de chamar o `ChargingService`
+- Dados mock em memória: VIN 001 não está a carregar (42 ciclos); VIN 002 a carregar (108 ciclos, sessão activa); VIN 003 não está a carregar (312 ciclos, bateria "Fair")
+- Contrato externo `mota.proto` não foi alterado — campos de carregamento já existiam mas não estavam preenchidos
+- Serviços MotoService, TelemetryService, TripsService, UserService, NotificationsService e MaintenanceService não foram alterados
+
+### Pendente (Fase 4E+)
 - **Fase 4E**: FaultsService — novo serviço para erros e avisos da mota
 - **Fase 5**: Substituir repositórios em memória por base de dados real; substituir `/auth/login` mock por IdP externo

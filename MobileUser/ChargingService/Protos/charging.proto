@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+option csharp_namespace = "ChargingService.Grpc";
+
+package charging;
+
+message ChargingVinRequest {
+  string user_id = 1;
+  string vin = 2;
+}
+
+message ChargingStatusResponse {
+  string vin = 1;
+  bool is_charging = 2;
+  string charging_time = 3;
+  string battery_health = 4;
+  int32 battery_cycles = 5;
+}
+
+message BatteryCyclesResponse {
+  int32 battery_cycles = 1;
+}
+
+message ChargingSession {
+  string id = 1;
+  string vin = 2;
+  int64 start_time = 3;
+  int64 end_time = 4;
+  int32 initial_soc = 5;
+  int32 final_soc = 6;
+  bool is_charging = 7;
+  string charging_time = 8;
+  int32 battery_cycles = 9;
+  float energy_charged_kwh = 10;
+  string charger_type = 11;
+  string start_location = 12;
+  string end_location = 13;
+  int32 total_time_minutes = 14;
+}
+
+message ChargingHistoryResponse {
+  repeated ChargingSession sessions = 1;
+}
+
+message RemainingChargingTimeResponse {
+  int32 remaining_minutes = 1;
+  string estimated_completion = 2;
+}
+
+message StartChargingRequest {
+  string user_id = 1;
+  string vin = 2;
+  string charger_type = 3;
+  string location = 4;
+  int32 initial_soc = 5;
+}
+
+message EndChargingRequest {
+  string user_id = 1;
+  string vin = 2;
+  string session_id = 3;
+  int32 final_soc = 4;
+}
+
+message ChargingActionResponse {
+  bool success = 1;
+  string message = 2;
+  string session_id = 3;
+}
+
+service ChargingService {
+  rpc GetChargingStatus (ChargingVinRequest) returns (ChargingStatusResponse);
+  rpc GetBatteryCycles (ChargingVinRequest) returns (BatteryCyclesResponse);
+  rpc GetChargingHistory (ChargingVinRequest) returns (ChargingHistoryResponse);
+  rpc CalculateRemainingChargingTime (ChargingVinRequest) returns (RemainingChargingTimeResponse);
+  rpc StartChargingSession (StartChargingRequest) returns (ChargingActionResponse);
+  rpc EndChargingSession (EndChargingRequest) returns (ChargingActionResponse);
+}
