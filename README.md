@@ -38,6 +38,15 @@ Cada serviço é um processo independente em .NET 8, comunicando via gRPC (HTTP/
 │ UserHasAccessToVin│  │ CreateNotification    │
 └──────────────────┘   │ SendPush (mock)       │
                        └───────────────────────┘
+
+┌──────────────────────┐
+│  MaintenanceService  │
+│     porta 5184       │
+│                      │
+│ Agenda de manutenção │
+│ Agendamento serviço  │
+│ Próxima revisão (km) │
+└──────────────────────┘
 ```
 
 ---
@@ -52,6 +61,7 @@ Cada serviço é um processo independente em .NET 8, comunicando via gRPC (HTTP/
 | TripsService      | 5278      | `trips.proto`       | `TripsService.Grpc`     |
 | UserService       | 5182      | `user.proto`        | `UserService.Grpc`      |
 | NotificationsService | 5183   | `notifications.proto` | `NotificationsService.Grpc` |
+| MaintenanceService | 5184   | `maintenance.proto` | `MaintenanceService.Grpc` |
 
 Todos os serviços correm exclusivamente em HTTP/2 (Kestrel configurado explicitamente).  
 gRPC Reflection activa apenas em `Development` (para grpcurl / Postman).
@@ -86,9 +96,13 @@ dotnet run
 # Terminal 6
 cd MobileUser/NotificationsService
 dotnet run
+
+# Terminal 7
+cd MobileUser/MaintenanceService
+dotnet run
 ```
 
-Ou abre a solução `MobileUser/MobileUser.slnx` no Visual Studio e inicia os 6 projectos.
+Ou abre a solução `MobileUser/MobileUser.slnx` no Visual Studio e inicia os 7 projectos.
 
 ---
 
@@ -233,6 +247,21 @@ VINs disponíveis por omissão:
 - `MotasRepository` reduzido: mantém apenas notificações (TODO Fase 4B) e manutenção (TODO Fase 4C)
 - Dados continuam mock em memória; `MobileUser` continua a ser o único ponto com JWT externo
 
+### Fase 4C — Concluída
+- **MaintenanceService** criado como microserviço independente (porta 5184, `maintenance.proto`, namespace `MaintenanceService.Grpc`)
+- MaintenanceService trata **apenas manutenção**: agenda de manutenção, agendamento de serviço e próxima revisão em km
+- Lógica de manutenção migrada do `MotasRepository` para `MaintenanceRepository`; `IMotasRepository` e `MotasRepository` eliminados do BFF
+- **DealershipInfo ficou no BFF** (`IDealershipRepository` / `DealershipRepository` local), aguardando DealershipService próprio numa fase futura; MaintenanceService não contém dados de concessionário
+- `MotasGrpcService` (BFF) delega operações de manutenção ao `MaintenanceService`:
+  - `GetNextServiceKm` em `GetUserData` e `GetMotaInfo` — tolerante a falha (devolve 0 se indisponível)
+  - `GetMaintenanceAgenda` — obrigatório; mapeia `MaintenanceService.Grpc.MaintenanceStatus` → `AMoverGRPC.MaintenanceStatus` por cast inteiro
+  - `BookMaintenanceService` — obrigatório; delega validação de data ao `MaintenanceRepository`
+  - `GetDealershipInfo` em `GetUserData` — servido pelo `DealershipRepository` local, não pelo `MaintenanceService`
+- Todas as chamadas ao `MaintenanceService` passam `user_id + vin`; o serviço valida ambos antes de processar
+- O BFF continua a validar `userId + VIN` via `UserService.UserHasAccessToVin` antes de chamar o `MaintenanceService`
+- Contrato externo `mota.proto` não foi alterado
+- Serviços MotoService, TelemetryService, TripsService, UserService e NotificationsService não foram alterados
+
 ### Fase 4B — Concluída
 - **NotificationsService** criado como microserviço independente (porta 5183, `notifications.proto`, namespace `NotificationsService.Grpc`)
 - Notificações migradas do `MotasRepository` para `NotificationRepository` com campos `UserId`, `Vin` e `Type`
@@ -245,8 +274,7 @@ VINs disponíveis por omissão:
 - Contrato externo `mota.proto` não foi alterado: `AppNotification` mantém `{id, title, message, timestamp, is_read}` — o BFF faz o mapeamento
 - `MotasRepository` reduzido: mantém apenas manutenção (TODO Fase 4C)
 
-### Pendente (Fase 4C+)
-- **Fase 4C**: MaintenanceService — extrair agenda de manutenção do MotasRepository
+### Pendente (Fase 4D+)
 - **Fase 4D**: ChargingService — novo serviço; preenche campos `is_charging`, `battery_cycles`, `charging_time` no MotaResponse
 - **Fase 4E**: FaultsService — novo serviço para erros e avisos da mota
 - **Fase 5**: Substituir repositórios em memória por base de dados real; substituir `/auth/login` mock por IdP externo

@@ -7,33 +7,37 @@ using TelemetrySvcClient = TelemetryService.Grpc.TelemetryService.TelemetryServi
 using TripsSvcClient = TripsService.Grpc.TripsService.TripsServiceClient;
 using UserSvcClient = UserService.Grpc.UserService.UserServiceClient;
 using NotifSvcClient = NotificationsService.Grpc.NotificationsService.NotificationsServiceClient;
+using MaintenSvcClient = MaintenanceService.Grpc.MaintenanceService.MaintenanceServiceClient;
 
 namespace MobileUser.Services
 {
     [Authorize]
     public class MotasGrpcService : MotasService.MotasServiceBase
     {
-        private readonly IMotasRepository _repository;
+        private readonly IDealershipRepository _dealershipRepository;
         private readonly MotoSvcClient _motoClient;
         private readonly TelemetrySvcClient _telemetryClient;
         private readonly TripsSvcClient _tripsClient;
         private readonly UserSvcClient _userClient;
         private readonly NotifSvcClient _notificationsClient;
+        private readonly MaintenSvcClient _maintenanceClient;
 
         public MotasGrpcService(
-            IMotasRepository repository,
+            IDealershipRepository dealershipRepository,
             MotoSvcClient motoClient,
             TelemetrySvcClient telemetryClient,
             TripsSvcClient tripsClient,
             UserSvcClient userClient,
-            NotifSvcClient notificationsClient)
+            NotifSvcClient notificationsClient,
+            MaintenSvcClient maintenanceClient)
         {
-            _repository = repository;
+            _dealershipRepository = dealershipRepository;
             _motoClient = motoClient;
             _telemetryClient = telemetryClient;
             _tripsClient = tripsClient;
             _userClient = userClient;
             _notificationsClient = notificationsClient;
+            _maintenanceClient = maintenanceClient;
         }
 
         public override async Task<UserDataResponse> GetUserData(UserRequest request, ServerCallContext context)
@@ -60,7 +64,8 @@ namespace MobileUser.Services
                 PhotoUri = userProfile.PhotoUri
             };
 
-            var dealership = await _repository.GetDealershipInfoAsync();
+            // Concessionário obtido do repositório local (Fase 4C — aguarda DealershipService)
+            var dealership = await _dealershipRepository.GetDealershipInfoAsync();
 
             var response = new UserDataResponse
             {
@@ -89,7 +94,16 @@ namespace MobileUser.Services
                 }
                 catch (RpcException) { }
 
-                var nextServiceKm = await _repository.GetNextServiceKmAsync(moto.Vin);
+                // Próxima revisão obtida do MaintenanceService (Fase 4C) — tolerante a falha
+                var nextServiceKm = 0;
+                try
+                {
+                    var kmResp = await _maintenanceClient.GetNextServiceKmAsync(
+                        new MaintenanceService.Grpc.MaintenanceVinRequest { UserId = userId, Vin = moto.Vin });
+                    nextServiceKm = kmResp.Km;
+                }
+                catch (RpcException) { }
+
                 response.Bikes.Add(BuildMotaResponse(moto, telemetry, null, nextServiceKm));
             }
 
@@ -133,7 +147,15 @@ namespace MobileUser.Services
 
             await Task.WhenAll(telemetryTask, tripsTask);
 
-            var nextServiceKm = await _repository.GetNextServiceKmAsync(request.Vin);
+            // Próxima revisão obtida do MaintenanceService (Fase 4C) — tolerante a falha
+            var nextServiceKm = 0;
+            try
+            {
+                var kmResp = await _maintenanceClient.GetNextServiceKmAsync(
+                    new MaintenanceService.Grpc.MaintenanceVinRequest { UserId = userId, Vin = request.Vin });
+                nextServiceKm = kmResp.Km;
+            }
+            catch (RpcException) { }
 
             return BuildMotaResponse(moto, telemetryTask.Result, tripsTask.Result, nextServiceKm);
         }
@@ -297,8 +319,37 @@ namespace MobileUser.Services
             var userId = ExtractUserId(context);
             await ValidateVinOwnershipAsync(request.Vin, userId);
 
-            // TODO Fase 4C: delegar ao MaintenanceService
-            return await _repository.GetMaintenanceAgendaAsync(request.Vin);
+            MaintenanceService.Grpc.MaintenanceAgendaResponse agendaResp;
+            try
+            {
+                agendaResp = await _maintenanceClient.GetMaintenanceAgendaAsync(
+                    new MaintenanceService.Grpc.MaintenanceVinRequest { UserId = userId, Vin = request.Vin });
+            }
+            catch (RpcException)
+            {
+                throw new RpcException(new Status(StatusCode.Unavailable, "MaintenanceService indisponível."));
+            }
+
+            var response = new MaintenanceAgendaResponse();
+            foreach (var r in agendaResp.Maintenance)
+            {
+                response.Maintenance.Add(new MaintenanceRecord
+                {
+                    Id = r.Id,
+                    Title = r.Title,
+                    Subtitle = r.Subtitle,
+                    Description = r.Description,
+                    Date = r.Date,
+                    KmTrigger = r.KmTrigger,
+                    DaysRemaining = r.DaysRemaining,
+                    KmRemaining = r.KmRemaining,
+                    ServiceCenter = r.ServiceCenter,
+                    Contact = r.Contact,
+                    Address = r.Address,
+                    Status = (AMoverGRPC.MaintenanceStatus)(int)r.Status
+                });
+            }
+            return response;
         }
 
         public override async Task<ActionStatus> BookMaintenanceService(BookServiceRequest request, ServerCallContext context)
@@ -316,9 +367,24 @@ namespace MobileUser.Services
             var userId = ExtractUserId(context);
             await ValidateVinOwnershipAsync(request.Vin, userId);
 
-            // TODO Fase 4C: delegar ao MaintenanceService
-            return await _repository.BookMaintenanceServiceAsync(
-                request.Vin, request.MaintenanceId, request.SelectedDate);
+            MaintenanceService.Grpc.MaintenanceActionResponse result;
+            try
+            {
+                result = await _maintenanceClient.BookMaintenanceServiceAsync(
+                    new MaintenanceService.Grpc.BookServiceRequest
+                    {
+                        UserId = userId,
+                        Vin = request.Vin,
+                        MaintenanceId = request.MaintenanceId,
+                        SelectedDate = request.SelectedDate
+                    });
+            }
+            catch (RpcException)
+            {
+                throw new RpcException(new Status(StatusCode.Unavailable, "MaintenanceService indisponível."));
+            }
+
+            return new ActionStatus { Success = result.Success, Message = result.Message };
         }
 
         public override async Task<ActionStatus> UpdateProfilePhoto(UpdatePhotoRequest request, ServerCallContext context)

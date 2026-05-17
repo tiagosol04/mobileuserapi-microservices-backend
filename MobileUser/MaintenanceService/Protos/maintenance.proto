@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+option csharp_namespace = "MaintenanceService.Grpc";
+
+package maintenance;
+
+enum MaintenanceStatus {
+  MAINTENANCE_STATUS_UNKNOWN = 0;
+  DUE_SOON = 1;
+  SCHEDULED = 2;
+  PLANNED = 3;
+  COMPLETED = 4;
+}
+
+message MaintenanceVinRequest {
+  string user_id = 1;
+  string vin = 2;
+}
+
+message MaintenanceRecord {
+  int32 id = 1;
+  string title = 2;
+  string subtitle = 3;
+  string description = 4;
+  string date = 5;
+  int32 km_trigger = 6;
+  int32 days_remaining = 7;
+  int32 km_remaining = 8;
+  string service_center = 9;
+  string contact = 10;
+  string address = 11;
+  MaintenanceStatus status = 12;
+}
+
+message MaintenanceAgendaResponse {
+  repeated MaintenanceRecord maintenance = 1;
+}
+
+message BookServiceRequest {
+  string user_id = 1;
+  string vin = 2;
+  int32 maintenance_id = 3;
+  string selected_date = 4;
+}
+
+message MaintenanceActionResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message NextServiceKmResponse {
+  int32 km = 1;
+}
+
+service MaintenanceService {
+  rpc GetMaintenanceAgenda (MaintenanceVinRequest) returns (MaintenanceAgendaResponse);
+  rpc BookMaintenanceService (BookServiceRequest) returns (MaintenanceActionResponse);
+  rpc GetNextServiceKm (MaintenanceVinRequest) returns (NextServiceKmResponse);
+}

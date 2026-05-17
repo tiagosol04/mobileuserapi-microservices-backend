@@ -1,37 +1,26 @@
 using System.Globalization;
-using AMoverGRPC;
-using MobileUser.Repositories.Interfaces;
+using MaintenanceService.Models;
+using MaintenanceService.Repositories.Interfaces;
 
-namespace MobileUser.Repositories
+namespace MaintenanceService.Repositories
 {
-    // Repositório residual do BFF. Contém apenas lógica ainda não migrada para microserviços próprios.
-    // Perfil, foto e guest access foram migrados para UserService (Fase 4A).
-    // Notificações foram migradas para NotificationsService (Fase 4B).
-    // TODO Fase 4C: mover manutenção para MaintenanceService.
-    public class MotasRepository : IMotasRepository
+    // Dados mock em memória. Em produção substituir por base de dados real.
+    public class MaintenanceRepository : IMaintenanceRepository
     {
         private readonly object _sync = new();
 
-        private readonly DealershipInfo _dealership = new DealershipInfo
-        {
-            Name = "Stand Exemplo",
-            Phone = "912345678",
-            Email = "stand@email.com",
-            Address = "Rua Exemplo, Vila Real",
-            AssistancePhone = "932222222"
-        };
-
         private readonly Dictionary<string, List<MaintenanceRecord>> _maintenance;
 
-        public MotasRepository()
+        public MaintenanceRepository()
         {
             _maintenance = new Dictionary<string, List<MaintenanceRecord>>(StringComparer.OrdinalIgnoreCase)
             {
                 ["V-FG-2024-X1-001"] = new List<MaintenanceRecord>
                 {
-                    new MaintenanceRecord
+                    new()
                     {
                         Id = 1,
+                        Vin = "V-FG-2024-X1-001",
                         Title = "Revisão Geral",
                         Subtitle = "Manutenção periódica",
                         Description = "Verificação completa da mota incluindo travões, pneus e sistema elétrico.",
@@ -44,9 +33,10 @@ namespace MobileUser.Repositories
                         Address = "Rua da Oficina, Vila Real",
                         Status = MaintenanceStatus.DueSoon
                     },
-                    new MaintenanceRecord
+                    new()
                     {
                         Id = 2,
+                        Vin = "V-FG-2024-X1-001",
                         Title = "Troca de Pneus",
                         Subtitle = "Desgaste previsto",
                         Description = "Substituição dos pneus dianteiro e traseiro.",
@@ -62,9 +52,10 @@ namespace MobileUser.Repositories
                 },
                 ["V-FG-2024-X1-002"] = new List<MaintenanceRecord>
                 {
-                    new MaintenanceRecord
+                    new()
                     {
                         Id = 3,
+                        Vin = "V-FG-2024-X1-002",
                         Title = "Revisão Geral",
                         Subtitle = "Revisão dos 9000 km",
                         Description = "Inspeção completa do motor e BMS.",
@@ -80,9 +71,10 @@ namespace MobileUser.Repositories
                 },
                 ["V-FG-2024-X1-003"] = new List<MaintenanceRecord>
                 {
-                    new MaintenanceRecord
+                    new()
                     {
                         Id = 4,
+                        Vin = "V-FG-2024-X1-003",
                         Title = "Substituição Bateria",
                         Subtitle = "Bateria degradada",
                         Description = "Substituição da bateria principal por desgaste excessivo.",
@@ -97,14 +89,6 @@ namespace MobileUser.Repositories
                     }
                 }
             };
-        }
-
-        public Task<DealershipInfo> GetDealershipInfoAsync()
-        {
-            lock (_sync)
-            {
-                return Task.FromResult(_dealership.Clone());
-            }
         }
 
         public Task<int> GetNextServiceKmAsync(string vin)
@@ -123,25 +107,19 @@ namespace MobileUser.Repositories
             }
         }
 
-        public Task<MaintenanceAgendaResponse> GetMaintenanceAgendaAsync(string vin)
+        public Task<List<MaintenanceRecord>> GetMaintenanceAgendaAsync(string vin)
         {
             lock (_sync)
             {
-                var response = new MaintenanceAgendaResponse();
+                if (!_maintenance.TryGetValue(vin, out var records))
+                    return Task.FromResult(new List<MaintenanceRecord>());
 
-                if (_maintenance.TryGetValue(vin, out var records))
-                {
-                    foreach (var record in records.OrderBy(r => r.Date))
-                    {
-                        response.Maintenance.Add(record.Clone());
-                    }
-                }
-
-                return Task.FromResult(response);
+                var result = records.OrderBy(r => r.Date).ToList();
+                return Task.FromResult(result);
             }
         }
 
-        public Task<ActionStatus> BookMaintenanceServiceAsync(string vin, int maintenanceId, string selectedDate)
+        public Task<MaintenanceActionResult> BookMaintenanceServiceAsync(string vin, int maintenanceId, string selectedDate)
         {
             lock (_sync)
             {
@@ -152,31 +130,24 @@ namespace MobileUser.Repositories
                         DateTimeStyles.None,
                         out var parsedDate))
                 {
-                    return Task.FromResult(new ActionStatus
-                    {
-                        Success = false,
-                        Message = "A data deve estar no formato yyyy-MM-dd."
-                    });
+                    return Task.FromResult(
+                        new MaintenanceActionResult(false, "A data deve estar no formato yyyy-MM-dd."));
                 }
 
                 if (!_maintenance.TryGetValue(vin, out var records))
                 {
-                    return Task.FromResult(new ActionStatus
-                    {
-                        Success = false,
-                        Message = $"Não existe agenda de manutenção para a mota '{vin}'."
-                    });
+                    return Task.FromResult(
+                        new MaintenanceActionResult(false,
+                            $"Não existe agenda de manutenção para a mota '{vin}'."));
                 }
 
                 var record = records.FirstOrDefault(r => r.Id == maintenanceId);
 
                 if (record is null)
                 {
-                    return Task.FromResult(new ActionStatus
-                    {
-                        Success = false,
-                        Message = $"Registo de manutenção {maintenanceId} não encontrado."
-                    });
+                    return Task.FromResult(
+                        new MaintenanceActionResult(false,
+                            $"Registo de manutenção {maintenanceId} não encontrado."));
                 }
 
                 var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -184,11 +155,9 @@ namespace MobileUser.Repositories
                 record.Status = MaintenanceStatus.Scheduled;
                 record.DaysRemaining = Math.Max(parsedDate.DayNumber - today.DayNumber, 0);
 
-                return Task.FromResult(new ActionStatus
-                {
-                    Success = true,
-                    Message = $"Serviço '{record.Title}' agendado para {selectedDate}."
-                });
+                return Task.FromResult(
+                    new MaintenanceActionResult(true,
+                        $"Serviço '{record.Title}' agendado para {selectedDate}."));
             }
         }
     }

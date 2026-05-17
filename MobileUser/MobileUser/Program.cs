@@ -15,7 +15,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddGrpc();
 builder.Services.AddGrpcReflection();
 
-builder.Services.AddSingleton<IMotasRepository, MotasRepository>();
+builder.Services.AddSingleton<IDealershipRepository, DealershipRepository>();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -50,6 +50,9 @@ builder.Services.AddGrpcClient<UserService.Grpc.UserService.UserServiceClient>(o
 
 builder.Services.AddGrpcClient<NotificationsService.Grpc.NotificationsService.NotificationsServiceClient>(o =>
     o.Address = new Uri(builder.Configuration["ServiceAddresses:NotificationsService"]!));
+
+builder.Services.AddGrpcClient<MaintenanceService.Grpc.MaintenanceService.MaintenanceServiceClient>(o =>
+    o.Address = new Uri(builder.Configuration["ServiceAddresses:MaintenanceService"]!));
 
 builder.WebHost.ConfigureKestrel(options =>
 {
