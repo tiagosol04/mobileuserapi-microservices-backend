@@ -19,6 +19,34 @@ enum MaintenanceStatus {
   COMPLETED = 4;
 }
 
+enum FaultSeverity {
+  FAULT_SEVERITY_UNKNOWN = 0;
+  FAULT_INFO = 1;
+  FAULT_WARNING = 2;
+  FAULT_ERROR = 3;
+}
+
+message FaultItem {
+  string id = 1;
+  string code = 2;
+  string title = 3;
+  string description = 4;
+  FaultSeverity severity = 5;
+  int64 timestamp = 6;
+  bool is_acknowledged = 7;
+}
+
+message FaultListResponse {
+  repeated FaultItem faults = 1;
+  int32 error_count = 2;
+  int32 warning_count = 3;
+}
+
+message AcknowledgeFaultRequest {
+  string vin = 1;
+  string fault_id = 2;
+}
+
 message UserRequest {}
 
 message UserProfile {
@@ -82,6 +110,7 @@ message MotaResponse {
   double latitude = 20;
   double longitude = 21;
   repeated Document documents = 22;
+  repeated FaultItem active_faults = 23;
 }
 
 message UserDataResponse {
@@ -161,4 +190,9 @@ service MotasService {
 
   rpc UpdateProfilePhoto (UpdatePhotoRequest) returns (ActionStatus);
   rpc UpdateProfileInfo (UpdateProfileInfoRequest) returns (ActionStatus);
+
+  rpc GetFaults (MotaRequest) returns (FaultListResponse);
+  rpc AcknowledgeFault (AcknowledgeFaultRequest) returns (ActionStatus);
+  rpc GetWarnings (MotaRequest) returns (FaultListResponse);
+  rpc ResolveFault (AcknowledgeFaultRequest) returns (ActionStatus);
 }

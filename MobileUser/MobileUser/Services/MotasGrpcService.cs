@@ -9,6 +9,7 @@ using UserSvcClient = UserService.Grpc.UserService.UserServiceClient;
 using NotifSvcClient = NotificationsService.Grpc.NotificationsService.NotificationsServiceClient;
 using MaintenSvcClient = MaintenanceService.Grpc.MaintenanceService.MaintenanceServiceClient;
 using ChargingSvcClient = ChargingService.Grpc.ChargingService.ChargingServiceClient;
+using FaultsSvcClient = FaultsService.Grpc.FaultsService.FaultsServiceClient;
 
 namespace MobileUser.Services
 {
@@ -23,6 +24,7 @@ namespace MobileUser.Services
         private readonly NotifSvcClient _notificationsClient;
         private readonly MaintenSvcClient _maintenanceClient;
         private readonly ChargingSvcClient _chargingClient;
+        private readonly FaultsSvcClient _faultsClient;
 
         public MotasGrpcService(
             IDealershipRepository dealershipRepository,
@@ -32,7 +34,8 @@ namespace MobileUser.Services
             UserSvcClient userClient,
             NotifSvcClient notificationsClient,
             MaintenSvcClient maintenanceClient,
-            ChargingSvcClient chargingClient)
+            ChargingSvcClient chargingClient,
+            FaultsSvcClient faultsClient)
         {
             _dealershipRepository = dealershipRepository;
             _motoClient = motoClient;
@@ -42,6 +45,7 @@ namespace MobileUser.Services
             _notificationsClient = notificationsClient;
             _maintenanceClient = maintenanceClient;
             _chargingClient = chargingClient;
+            _faultsClient = faultsClient;
         }
 
         public override async Task<UserDataResponse> GetUserData(UserRequest request, ServerCallContext context)
@@ -117,7 +121,16 @@ namespace MobileUser.Services
                 }
                 catch (RpcException) { }
 
-                response.Bikes.Add(BuildMotaResponse(moto, telemetry, null, nextServiceKm, charging));
+                // Faults activos obtidos do FaultsService (Fase 4E) — tolerante a falha
+                FaultsService.Grpc.FaultListResponse? faultList = null;
+                try
+                {
+                    faultList = await _faultsClient.GetActiveFaultsAsync(
+                        new FaultsService.Grpc.FaultVinRequest { UserId = userId, Vin = moto.Vin });
+                }
+                catch (RpcException) { }
+
+                response.Bikes.Add(BuildMotaResponse(moto, telemetry, null, nextServiceKm, charging, faultList));
             }
 
             return response;
@@ -163,7 +176,11 @@ namespace MobileUser.Services
                 _chargingClient.GetChargingStatusAsync(
                     new ChargingService.Grpc.ChargingVinRequest { UserId = userId, Vin = request.Vin }).ResponseAsync);
 
-            await Task.WhenAll(telemetryTask, tripsTask, chargingTask);
+            var faultsTask = TryCallAsync(() =>
+                _faultsClient.GetActiveFaultsAsync(
+                    new FaultsService.Grpc.FaultVinRequest { UserId = userId, Vin = request.Vin }).ResponseAsync);
+
+            await Task.WhenAll(telemetryTask, tripsTask, chargingTask, faultsTask);
 
             // Próxima revisão obtida do MaintenanceService (Fase 4C) — tolerante a falha
             var nextServiceKm = 0;
@@ -175,7 +192,7 @@ namespace MobileUser.Services
             }
             catch (RpcException) { }
 
-            return BuildMotaResponse(moto, telemetryTask.Result, tripsTask.Result, nextServiceKm, chargingTask.Result);
+            return BuildMotaResponse(moto, telemetryTask.Result, tripsTask.Result, nextServiceKm, chargingTask.Result, faultsTask.Result);
         }
 
         public override async Task<ActionStatus> AddGuestAccess(GuestAccessRequest request, ServerCallContext context)
@@ -405,6 +422,144 @@ namespace MobileUser.Services
             return new ActionStatus { Success = result.Success, Message = result.Message };
         }
 
+        public override async Task<FaultListResponse> GetFaults(MotaRequest request, ServerCallContext context)
+        {
+            if (string.IsNullOrWhiteSpace(request.Vin))
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
+
+            var userId = ExtractUserId(context);
+            await ValidateVinOwnershipAsync(request.Vin, userId);
+
+            FaultsService.Grpc.FaultListResponse faultList;
+            try
+            {
+                faultList = await _faultsClient.GetFaultHistoryAsync(
+                    new FaultsService.Grpc.FaultVinRequest { UserId = userId, Vin = request.Vin });
+            }
+            catch (RpcException)
+            {
+                throw new RpcException(new Status(StatusCode.Unavailable, "FaultsService indisponível."));
+            }
+
+            var response = new FaultListResponse
+            {
+                ErrorCount = faultList.ErrorCount,
+                WarningCount = faultList.WarningCount
+            };
+            foreach (var f in faultList.Faults)
+            {
+                response.Faults.Add(new FaultItem
+                {
+                    Id = f.Id,
+                    Code = f.Code,
+                    Title = f.Title,
+                    Description = f.Description,
+                    Severity = MapFaultSeverity(f.Severity),
+                    Timestamp = f.Timestamp,
+                    IsAcknowledged = f.IsAcknowledged
+                });
+            }
+            return response;
+        }
+
+        public override async Task<ActionStatus> AcknowledgeFault(AcknowledgeFaultRequest request, ServerCallContext context)
+        {
+            if (string.IsNullOrWhiteSpace(request.Vin))
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
+            if (string.IsNullOrWhiteSpace(request.FaultId))
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "faultId é obrigatório."));
+
+            var userId = ExtractUserId(context);
+            await ValidateVinOwnershipAsync(request.Vin, userId);
+
+            FaultsService.Grpc.FaultActionResponse result;
+            try
+            {
+                result = await _faultsClient.AcknowledgeFaultAsync(
+                    new FaultsService.Grpc.AcknowledgeFaultRequest
+                    {
+                        UserId = userId,
+                        Vin = request.Vin,
+                        FaultId = request.FaultId
+                    });
+            }
+            catch (RpcException)
+            {
+                throw new RpcException(new Status(StatusCode.Unavailable, "FaultsService indisponível."));
+            }
+
+            return new ActionStatus { Success = result.Success, Message = result.Message };
+        }
+
+        public override async Task<FaultListResponse> GetWarnings(MotaRequest request, ServerCallContext context)
+        {
+            if (string.IsNullOrWhiteSpace(request.Vin))
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
+
+            var userId = ExtractUserId(context);
+            await ValidateVinOwnershipAsync(request.Vin, userId);
+
+            FaultsService.Grpc.FaultListResponse faultList;
+            try
+            {
+                faultList = await _faultsClient.GetWarningsAsync(
+                    new FaultsService.Grpc.FaultVinRequest { UserId = userId, Vin = request.Vin });
+            }
+            catch (RpcException)
+            {
+                throw new RpcException(new Status(StatusCode.Unavailable, "FaultsService indisponível."));
+            }
+
+            var response = new FaultListResponse
+            {
+                ErrorCount = faultList.ErrorCount,
+                WarningCount = faultList.WarningCount
+            };
+            foreach (var f in faultList.Faults)
+            {
+                response.Faults.Add(new FaultItem
+                {
+                    Id = f.Id,
+                    Code = f.Code,
+                    Title = f.Title,
+                    Description = f.Description,
+                    Severity = MapFaultSeverity(f.Severity),
+                    Timestamp = f.Timestamp,
+                    IsAcknowledged = f.IsAcknowledged
+                });
+            }
+            return response;
+        }
+
+        public override async Task<ActionStatus> ResolveFault(AcknowledgeFaultRequest request, ServerCallContext context)
+        {
+            if (string.IsNullOrWhiteSpace(request.Vin))
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
+            if (string.IsNullOrWhiteSpace(request.FaultId))
+                throw new RpcException(new Status(StatusCode.InvalidArgument, "faultId é obrigatório."));
+
+            var userId = ExtractUserId(context);
+            await ValidateVinOwnershipAsync(request.Vin, userId);
+
+            FaultsService.Grpc.FaultActionResponse result;
+            try
+            {
+                result = await _faultsClient.ResolveFaultAsync(
+                    new FaultsService.Grpc.ResolveFaultRequest
+                    {
+                        UserId = userId,
+                        Vin = request.Vin,
+                        FaultId = request.FaultId
+                    });
+            }
+            catch (RpcException)
+            {
+                throw new RpcException(new Status(StatusCode.Unavailable, "FaultsService indisponível."));
+            }
+
+            return new ActionStatus { Success = result.Success, Message = result.Message };
+        }
+
         public override async Task<ActionStatus> UpdateProfilePhoto(UpdatePhotoRequest request, ServerCallContext context)
         {
             if (request.ImageData == null || request.ImageData.IsEmpty)
@@ -492,7 +647,8 @@ namespace MobileUser.Services
             TelemetryService.Grpc.TelemetryResponse? telemetry,
             TripsService.Grpc.TripStatisticsResponse? tripStats,
             int nextServiceKm,
-            ChargingService.Grpc.ChargingStatusResponse? charging = null)
+            ChargingService.Grpc.ChargingStatusResponse? charging = null,
+            FaultsService.Grpc.FaultListResponse? faultList = null)
         {
             var response = new MotaResponse
             {
@@ -537,8 +693,34 @@ namespace MobileUser.Services
                 });
             }
 
+            // Faults activos preenchidos pelo FaultsService (Fase 4E)
+            if (faultList is not null)
+            {
+                foreach (var f in faultList.Faults)
+                {
+                    response.ActiveFaults.Add(new FaultItem
+                    {
+                        Id = f.Id,
+                        Code = f.Code,
+                        Title = f.Title,
+                        Description = f.Description,
+                        Severity = MapFaultSeverity(f.Severity),
+                        Timestamp = f.Timestamp,
+                        IsAcknowledged = f.IsAcknowledged
+                    });
+                }
+            }
+
             return response;
         }
+
+        private static FaultSeverity MapFaultSeverity(string severity) => severity.ToUpperInvariant() switch
+        {
+            "INFO" => FaultSeverity.FaultInfo,
+            "WARNING" => FaultSeverity.FaultWarning,
+            "ERROR" => FaultSeverity.FaultError,
+            _ => FaultSeverity.Unknown
+        };
 
         private static DrivingMode ParseDrivingMode(string? value) => value?.ToUpperInvariant() switch
         {
