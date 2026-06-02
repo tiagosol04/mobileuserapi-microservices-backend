@@ -10,10 +10,12 @@ builder.Services.AddGrpcReflection();
 
 builder.Services.AddSingleton<IUserRepository, UserRepository>();
 
+
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.ListenLocalhost(5182, listenOptions =>
     {
+        listenOptions.UseHttps();
         listenOptions.Protocols = HttpProtocols.Http2;
     });
 });
