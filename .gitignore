@@ -30,3 +30,6 @@ x86/
 
 ## User-specific
 launchSettings.json.user
+
+# Claude Code
+.claude/
