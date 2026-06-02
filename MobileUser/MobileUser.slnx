@@ -1,3 +1,11 @@
 <Solution>
-  <Project Path="MobileUser/MobileUser.csproj" />
+  <Project Path="MobileUser/MobileUser.csproj" Id="a1b2c3d4-e5f6-7890-abcd-ef1234567890" />
+  <Project Path="MotoService/MotoService.csproj" Id="d81ad9f9-4fc3-47e4-927f-83db01da5da1" />
+  <Project Path="TelemetryService/TelemetryService.csproj" Id="f0b04282-790f-41a3-8000-d93f987a1e30" />
+  <Project Path="TripsService/TripsService.csproj" Id="aceebf06-9677-49a6-811f-f2015197fc72" />
+  <Project Path="UserService/UserService.csproj" Id="b9f7d2c1-3a8e-4f05-9c6b-7e1234567891" />
+  <Project Path="NotificationsService/NotificationsService.csproj" Id="d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f90" />
+  <Project Path="MaintenanceService/MaintenanceService.csproj" Id="c1d2e3f4-5a6b-7c8d-9e0f-1a2b3c4d5e6f" />
+  <Project Path="ChargingService/ChargingService.csproj" Id="e7f8a9b0-1c2d-3e4f-5a6b-7c8d9e0f1a2b" />
+  <Project Path="FaultsService/FaultsService.csproj" Id="f9a0b1c2-3d4e-5f60-7a8b-9c0d1e2f3a4b" />
 </Solution>

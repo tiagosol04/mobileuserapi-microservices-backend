@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+option csharp_namespace = "FaultsService.Grpc";
+
+package faults;
+
+message FaultVinRequest {
+  string user_id = 1;
+  string vin = 2;
+}
+
+message FaultEntry {
+  string id = 1;
+  string vin = 2;
+  string code = 3;
+  string title = 4;
+  string description = 5;
+  string severity = 6;
+  int64 timestamp = 7;
+  bool is_active = 8;
+  bool is_acknowledged = 9;
+}
+
+message FaultListResponse {
+  repeated FaultEntry faults = 1;
+  int32 error_count = 2;
+  int32 warning_count = 3;
+}
+
+message AcknowledgeFaultRequest {
+  string user_id = 1;
+  string vin = 2;
+  string fault_id = 3;
+}
+
+message RegisterFaultRequest {
+  string user_id = 1;
+  string vin = 2;
+  string code = 3;
+  string title = 4;
+  string description = 5;
+  string severity = 6;
+}
+
+message ResolveFaultRequest {
+  string user_id = 1;
+  string vin = 2;
+  string fault_id = 3;
+}
+
+message FaultActionResponse {
+  bool success = 1;
+  string message = 2;
+  string fault_id = 3;
+}
+
+service FaultsService {
+  rpc GetActiveFaults (FaultVinRequest) returns (FaultListResponse);
+  rpc GetFaultsByVin (FaultVinRequest) returns (FaultListResponse);
+  rpc GetFaultHistory (FaultVinRequest) returns (FaultListResponse);
+  rpc GetWarnings (FaultVinRequest) returns (FaultListResponse);
+  rpc RegisterFault (RegisterFaultRequest) returns (FaultActionResponse);
+  rpc ResolveFault (ResolveFaultRequest) returns (FaultActionResponse);
+  rpc AcknowledgeFault (AcknowledgeFaultRequest) returns (FaultActionResponse);
+}

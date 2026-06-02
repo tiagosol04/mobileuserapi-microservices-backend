@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+option csharp_namespace = "TelemetryService.Grpc";
+
+package telemetry;
+
+message TelemetryRequest {
+  string vin = 1;
+}
+
+message TelemetryHistoryRequest {
+  string vin = 1;
+  int64 start_date = 2;
+  int64 end_date = 3;
+}
+
+message SaveTelemetryRequest {
+  string vin = 1;
+  int64 timestamp = 2;
+
+  float battery_level = 3;
+  float battery_temperature = 4;
+  float battery_consumption = 5;
+  float battery_range = 6;
+
+  double latitude = 7;
+  double longitude = 8;
+
+  float speed = 9;
+  float average_speed = 10;
+  float total_kilometers = 11;
+
+  float tyre_front = 12;
+  float tyre_back = 13;
+
+  bool is_connected = 14;
+  bool is_started = 15;
+  string driving_mode = 16;
+
+  float voltage = 17;
+  float current = 18;
+  float power = 19;
+
+  string state = 20;
+}
+
+message TelemetryResponse {
+  int32 id = 1;
+  string vin = 2;
+  int64 timestamp = 3;
+
+  float battery_level = 4;
+  float battery_temperature = 5;
+  float battery_consumption = 6;
+  float battery_range = 7;
+
+  double latitude = 8;
+  double longitude = 9;
+
+  float speed = 10;
+  float average_speed = 11;
+  float total_kilometers = 12;
+
+  float tyre_front = 13;
+  float tyre_back = 14;
+
+  bool is_connected = 15;
+  bool is_started = 16;
+  string driving_mode = 17;
+
+  float voltage = 18;
+  float current = 19;
+  float power = 20;
+
+  string state = 21;
+}
+
+message TelemetryHistoryResponse {
+  repeated TelemetryResponse records = 1;
+}
+
+message VehicleConnectionStatusResponse {
+  string vin = 1;
+  bool is_connected = 2;
+  int64 last_seen = 3;
+  string state = 4;
+}
+
+message ActionStatus {
+  bool success = 1;
+  string message = 2;
+}
+
+service TelemetryService {
+  rpc GetLatestTelemetry (TelemetryRequest) returns (TelemetryResponse);
+  rpc StreamTelemetry (TelemetryRequest) returns (stream TelemetryResponse);
+  rpc SaveTelemetry (SaveTelemetryRequest) returns (ActionStatus);
+  rpc GetTelemetryHistory (TelemetryHistoryRequest) returns (TelemetryHistoryResponse);
+  rpc GetVehicleConnectionStatus (TelemetryRequest) returns (VehicleConnectionStatusResponse);
+}

@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+option csharp_namespace = "TripsService.Grpc";
+
+package trips;
+
+message TripVinRequest {
+  string vin = 1;
+}
+
+message TripIdRequest {
+  int32 trip_id = 1;
+}
+
+message EndTripRequest {
+  string vin = 1;
+  double end_latitude = 2;
+  double end_longitude = 3;
+  float distance_km = 4;
+  float energy_consumed = 5;
+  float average_speed = 6;
+}
+
+message TripResponse {
+  int32 id = 1;
+  string vin = 2;
+  string name = 3;
+  int64 start_time = 4;
+  int64 end_time = 5;
+  float distance_km = 6;
+  float energy_consumed = 7;
+  float energy_consumption_avg = 8;
+  float average_speed = 9;
+  double start_latitude = 10;
+  double start_longitude = 11;
+  double end_latitude = 12;
+  double end_longitude = 13;
+  int64 created_at = 14;
+  bool is_active = 15;
+}
+
+message TripListResponse {
+  repeated TripResponse trips = 1;
+}
+
+message TripStatisticsResponse {
+  string vin = 1;
+  int32 total_trips = 2;
+  float total_distance_km = 3;
+  float total_energy_consumed = 4;
+  float average_speed = 5;
+  float energy_consumption_avg = 6;
+}
+
+message TotalKilometersResponse {
+  string vin = 1;
+  float total_kilometers = 2;
+}
+
+message ActionStatus {
+  bool success = 1;
+  string message = 2;
+}
+
+service TripsService {
+  rpc StartTrip (TripVinRequest) returns (TripResponse);
+  rpc EndTrip (EndTripRequest) returns (TripResponse);
+  rpc GetRecentTrips (TripVinRequest) returns (TripListResponse);
+  rpc GetTripById (TripIdRequest) returns (TripResponse);
+  rpc GetTripStatistics (TripVinRequest) returns (TripStatisticsResponse);
+  rpc GetTotalKilometers (TripVinRequest) returns (TotalKilometersResponse);
+}

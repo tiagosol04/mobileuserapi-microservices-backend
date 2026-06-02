@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+option csharp_namespace = "NotificationsService.Grpc";
+
+package notifications;
+
+message NotificationUserRequest {
+  string user_id = 1;
+}
+
+message NotificationIdRequest {
+  string notification_id = 1;
+  string user_id = 2;
+}
+
+message NotificationResponse {
+  string id = 1;
+  string user_id = 2;
+  string vin = 3;
+  string title = 4;
+  string message = 5;
+  string type = 6;
+  bool is_read = 7;
+  int64 created_at = 8;
+}
+
+message NotificationListResponse {
+  repeated NotificationResponse notifications = 1;
+}
+
+message CreateNotificationRequest {
+  string user_id = 1;
+  string vin = 2;
+  string title = 3;
+  string message = 4;
+  string type = 5;
+}
+
+message PushNotificationRequest {
+  string user_id = 1;
+  string title = 2;
+  string message = 3;
+  string payload_json = 4;
+}
+
+message NotificationActionResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+service NotificationsService {
+  rpc GetNotifications (NotificationUserRequest) returns (NotificationListResponse);
+  rpc GetUnreadNotifications (NotificationUserRequest) returns (NotificationListResponse);
+  rpc MarkNotificationAsRead (NotificationIdRequest) returns (NotificationActionResponse);
+  rpc CreateNotification (CreateNotificationRequest) returns (NotificationActionResponse);
+  rpc SendPushNotification (PushNotificationRequest) returns (NotificationActionResponse);
+}
