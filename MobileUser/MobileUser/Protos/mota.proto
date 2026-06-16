@@ -196,6 +196,11 @@ service MotasService {
   rpc AcceptDelegation (DelegationDecisionRequest) returns (ActionStatus);
   rpc DeclineDelegation (DelegationDecisionRequest) returns (ActionStatus);
   rpc ListDelegations (MotaRequest) returns (DelegationListResponse);
+
+  rpc GetFaults (MotaRequest) returns (FaultListResponse);
+  rpc AcknowledgeFault (AcknowledgeFaultRequest) returns (ActionStatus);
+  rpc GetWarnings (MotaRequest) returns (FaultListResponse);
+  rpc ResolveFault (AcknowledgeFaultRequest) returns (ActionStatus);
 }
 
 //---------~RR
@@ -233,8 +238,4 @@ message DelegationDecisionRequest {
 
 message DelegationListResponse {
   repeated DelegationResponse delegations = 1;
-  rpc GetFaults (MotaRequest) returns (FaultListResponse);
-  rpc AcknowledgeFault (AcknowledgeFaultRequest) returns (ActionStatus);
-  rpc GetWarnings (MotaRequest) returns (FaultListResponse);
-  rpc ResolveFault (AcknowledgeFaultRequest) returns (ActionStatus);
 }

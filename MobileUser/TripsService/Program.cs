@@ -3,6 +3,8 @@ using TripsService.Repositories;
 using TripsService.Repositories.Interfaces;
 using TripsService.Services;
 
+AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddGrpc();
@@ -14,7 +16,6 @@ builder.WebHost.ConfigureKestrel(options =>
 {
     options.ListenLocalhost(5278, listenOptions =>
     {
-        listenOptions.UseHttps();
         listenOptions.Protocols = HttpProtocols.Http2;
     });
 });

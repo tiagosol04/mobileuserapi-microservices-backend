@@ -295,6 +295,11 @@ VINs disponíveis por omissão:
 - Contrato externo `mota.proto` não foi alterado — campos de carregamento já existiam mas não estavam preenchidos
 - Serviços MotoService, TelemetryService, TripsService, UserService, NotificationsService e MaintenanceService não foram alterados
 
-### Pendente (Fase 4E+)
-- **Fase 4E**: FaultsService — novo serviço para erros e avisos da mota
+### Fase 4E — Concluída
+- **FaultsService** criado como microserviço independente (porta 5186, `faults.proto`, namespace `FaultsService.Grpc`)
+- FaultsService trata avarias e avisos da mota: `GetActiveFaults`, `GetFaultsByVin`, `GetFaultHistory`, `GetWarnings`, `RegisterFault`, `ResolveFault`, `AcknowledgeFault`
+- Repositório em memória (`FaultsRepository`) com dados mock por VIN (severidades ERROR, WARNING, INFO)
+- `MotasGrpcService` (BFF) integra FaultsService em `GetUserData` e `GetMotaInfo` (tolerante a falha) e expõe `GetFaults`, `GetWarnings`, `AcknowledgeFault` e `ResolveFault` como RPCs externos
+
+### Pendente (Fase 5+)
 - **Fase 5**: Substituir repositórios em memória por base de dados real; substituir `/auth/login` mock por IdP externo

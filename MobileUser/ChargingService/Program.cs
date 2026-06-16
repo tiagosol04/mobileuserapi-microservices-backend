@@ -3,6 +3,8 @@ using ChargingService.Repositories.Interfaces;
 using ChargingService.Services;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
+AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddGrpc();
@@ -14,7 +16,6 @@ builder.WebHost.ConfigureKestrel(options =>
 {
     options.ListenLocalhost(5185, listenOptions =>
     {
-        listenOptions.UseHttps();
         listenOptions.Protocols = HttpProtocols.Http2;
     });
 });

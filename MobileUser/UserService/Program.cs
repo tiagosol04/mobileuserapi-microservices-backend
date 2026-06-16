@@ -3,6 +3,8 @@ using UserService.Repositories;
 using UserService.Repositories.Interfaces;
 using UserService.Services;
 
+AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddGrpc();
@@ -15,7 +17,6 @@ builder.WebHost.ConfigureKestrel(options =>
 {
     options.ListenLocalhost(5182, listenOptions =>
     {
-        listenOptions.UseHttps();
         listenOptions.Protocols = HttpProtocols.Http2;
     });
 });

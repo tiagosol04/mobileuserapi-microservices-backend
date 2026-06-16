@@ -17,18 +17,8 @@ namespace MobileUser.Services
     [Authorize]
     public class MotasGrpcService : MotasService.MotasServiceBase
     {
-        private readonly IMotasRepository _repository;
         private readonly IDelegationsRepository _delegationsRepository;
         private readonly IEmailService _emailService;
-
-        public MotasGrpcService(
-            IMotasRepository repository,
-            IDelegationsRepository delegationsRepository,
-            IEmailService emailService)
-        {
-            _repository = repository;
-            _delegationsRepository = delegationsRepository;
-            _emailService = emailService;
         private readonly IDealershipRepository _dealershipRepository;
         private readonly MotoSvcClient _motoClient;
         private readonly TelemetrySvcClient _telemetryClient;
@@ -40,6 +30,8 @@ namespace MobileUser.Services
         private readonly FaultsSvcClient _faultsClient;
 
         public MotasGrpcService(
+            IDelegationsRepository delegationsRepository,
+            IEmailService emailService,
             IDealershipRepository dealershipRepository,
             MotoSvcClient motoClient,
             TelemetrySvcClient telemetryClient,
@@ -50,6 +42,8 @@ namespace MobileUser.Services
             ChargingSvcClient chargingClient,
             FaultsSvcClient faultsClient)
         {
+            _delegationsRepository = delegationsRepository;
+            _emailService = emailService;
             _dealershipRepository = dealershipRepository;
             _motoClient = motoClient;
             _telemetryClient = telemetryClient;
@@ -765,13 +759,20 @@ namespace MobileUser.Services
                     new Status(StatusCode.InvalidArgument, "Email do convidado é obrigatório."));
             }
 
-            var mota = await _repository.GetMotaInfoAsync(request.Vin);
-
-            if (mota is null)
+            try
             {
-                throw new RpcException(
-                    new Status(StatusCode.NotFound,
+                await _motoClient.GetMotoByVinAsync(
+                    new MotoService.MotoRequest { Vin = request.Vin });
+            }
+            catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
+            {
+                throw new RpcException(new Status(StatusCode.NotFound,
                     $"Mota com VIN '{request.Vin}' não encontrada."));
+            }
+            catch (RpcException)
+            {
+                throw new RpcException(new Status(StatusCode.Unavailable,
+                    "MotoService indisponível."));
             }
 
             var delegation = await _delegationsRepository.CreateDelegationAsync(
@@ -837,11 +838,20 @@ namespace MobileUser.Services
                 throw new RpcException(new Status(StatusCode.InvalidArgument, "VIN é obrigatório."));
             }
 
-            var mota = await _repository.GetMotaInfoAsync(request.Vin);
-
-            if (mota is null)
+            try
             {
-                throw new RpcException(new Status(StatusCode.NotFound, $"Mota com VIN '{request.Vin}' não encontrada."));
+                await _motoClient.GetMotoByVinAsync(
+                    new MotoService.MotoRequest { Vin = request.Vin });
+            }
+            catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
+            {
+                throw new RpcException(new Status(StatusCode.NotFound,
+                    $"Mota com VIN '{request.Vin}' não encontrada."));
+            }
+            catch (RpcException)
+            {
+                throw new RpcException(new Status(StatusCode.Unavailable,
+                    "MotoService indisponível."));
             }
 
             return await _delegationsRepository.ListByVinAsync(request.Vin);
