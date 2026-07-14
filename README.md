@@ -1,305 +1,279 @@
-# MobileUserAPI — A-MoVeR / My Fulgora
+<div align="center">
 
-API de microserviços para a aplicação móvel do ecossistema A-MoVeR / My Fulgora.  
-Cada serviço é um processo independente em .NET 8, comunicando via gRPC (HTTP/2).
+# ⚡ MobileUserAPI
+
+### A-MoVeR · *My Fulgora*
+
+**Eight small services. One calm front door.**
+
+The gRPC microservice backend that powers the *My Fulgora* mobile app —
+where every request enters through a single guarded gateway and fans out
+across a constellation of focused, independent services.
+
+<br>
+
+![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4?style=for-the-badge&logo=dotnet&logoColor=white)
+![gRPC](https://img.shields.io/badge/gRPC-HTTP%2F2-244C5A?style=for-the-badge&logo=grpc&logoColor=white)
+![Protobuf](https://img.shields.io/badge/Protocol_Buffers-EA4335?style=for-the-badge&logo=protobuf&logoColor=white)
+![JWT](https://img.shields.io/badge/Auth-JWT_Bearer-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)
+![Pattern](https://img.shields.io/badge/Pattern-BFF-FF6F00?style=for-the-badge)
+
+</div>
 
 ---
 
-## Arquitectura
+## 🌩️ The idea in one breath
+
+*My Fulgora* is the companion app for Fulgora electric motorcycles. Behind it lives
+**MobileUserAPI**: not one monolith, but **nine independent .NET 8 processes** that talk
+to each other over **gRPC on HTTP/2**.
+
+The trick is the front door. The mobile app never speaks to the fleet of services directly —
+it speaks to exactly one of them, **MobileUser**, a *Backend-for-Frontend* (BFF) that:
+
+- 🔐 **holds the only JWT boundary** — authentication and per-VIN authorization live here,
+- 🧩 **aggregates** — a single call fans out to telemetry, trips, charging, faults… and returns one tidy answer,
+- 🛟 **degrades gracefully** — if a non-critical service is down, the response still comes back, just lighter.
+
+Everything downstream is a specialist that does *one thing* and does it in memory (for now).
+
+---
+
+## 🛰️ The shape of the system
 
 ```
-┌──────────────────┐   ┌──────────────────┐
-│   MobileUser     │   │   MotoService    │
-│   porta 5048     │   │   porta 5294     │
-│                  │   │                  │
-│ Gateway / BFF    │   │ CRUD de motas    │
-│ JWT Bearer auth  │   │ Documentos       │
-│ Agrega respostas │   │ Validação de VIN │
-│                  │   │                  │
-└──────────────────┘   └──────────────────┘
+                                 ┌───────────────────────────────┐
+        Mobile app  ────JWT────▶ │        MobileUser  ·  5048     │
+                                 │   Gateway / BFF · the only     │
+                                 │   place JWT is verified        │
+                                 │   Aggregates · authorizes VIN  │
+                                 └───────────────┬───────────────┘
+                                                 │  gRPC (internal, no JWT)
+        ┌────────────────┬───────────────┬───────┴───────┬────────────────┬───────────────┐
+        ▼                ▼               ▼               ▼                ▼               ▼
+ ┌────────────┐  ┌──────────────┐ ┌─────────────┐ ┌─────────────┐ ┌──────────────┐ ┌────────────┐
+ │ MotoService│  │ Telemetry    │ │ Trips       │ │ User        │ │ Notifications│ │ Charging   │
+ │   5294     │  │   5066       │ │   5278      │ │   5182      │ │   5183       │ │   5185     │
+ │ Units·VIN  │  │ Live + hist. │ │ Journeys    │ │ Profile     │ │ Per-user     │ │ Battery    │
+ │ Documents  │  │ gRPC stream  │ │ Statistics  │ │ Guest access│ │ inbox        │ │ sessions   │
+ └────────────┘  └──────────────┘ └─────────────┘ └─────────────┘ └──────────────┘ └────────────┘
+                                   ┌──────────────┐ ┌─────────────┐
+                                   │ Maintenance  │ │ Faults      │
+                                   │   5184       │ │   5186      │
+                                   │ Service book │ │ Errors +    │
+                                   │ Next service │ │ warnings    │
+                                   └──────────────┘ └─────────────┘
 
-┌──────────────────┐   ┌──────────────────┐
-│ TelemetryService │   │  TripsService    │
-│   porta 5066     │   │   porta 5278     │
-│                  │   │                  │
-│ Telemetria live  │   │ Início/fim viagem│
-│ Histórico        │   │ Viagens recentes │
-│ Streaming gRPC   │   │ Estatísticas     │
-│ Estado de ligação│   │ Kms totais       │
-└──────────────────┘   └──────────────────┘
-
-┌──────────────────┐   ┌───────────────────────┐
-│   UserService    │   │  NotificationsService │
-│   porta 5182     │   │      porta 5183       │
-│                  │   │                       │
-│ Perfil utilizador│   │ Notificações filtradas│
-│ Atualização foto │   │ por userId            │
-│ Acesso convidados│   │ MarkAsRead            │
-│ UserHasAccessToVin│  │ CreateNotification    │
-└──────────────────┘   │ SendPush (mock)       │
-                       └───────────────────────┘
-
-┌──────────────────────┐   ┌──────────────────────┐
-│  MaintenanceService  │   │   ChargingService    │
-│     porta 5184       │   │     porta 5185       │
-│                      │   │                      │
-│ Agenda de manutenção │   │ Estado de carga      │
-│ Agendamento serviço  │   │ Histórico de sessões │
-│ Próxima revisão (km) │   │ Ciclos de bateria    │
-└──────────────────────┘   │ Tempo restante carga │
-                           │ Início/fim sessão    │
-                           └──────────────────────┘
+   ── HTTP/2 only (Kestrel, explicit) ──   gRPC Reflection enabled in Development only ──
 ```
 
 ---
 
-## Serviços
+## 🧭 Service catalog
 
-| Serviço           | Porto HTTP | Proto               | Namespace gRPC          |
-|-------------------|-----------|---------------------|-------------------------|
-| MobileUser        | 5048      | `mota.proto`        | `AMoverGRPC`            |
-| MotoService       | 5294      | `moto.proto`        | `MotoService`           |
-| TelemetryService  | 5066      | `telemetry.proto`   | `TelemetryService.Grpc` |
-| TripsService      | 5278      | `trips.proto`       | `TripsService.Grpc`     |
-| UserService       | 5182      | `user.proto`        | `UserService.Grpc`      |
-| NotificationsService | 5183   | `notifications.proto` | `NotificationsService.Grpc` |
-| MaintenanceService | 5184   | `maintenance.proto` | `MaintenanceService.Grpc` |
-| ChargingService   | 5185   | `charging.proto`    | `ChargingService.Grpc`   |
+| Service                  | Port | Proto                 | gRPC namespace                | Responsibility                                  |
+|--------------------------|:----:|-----------------------|-------------------------------|-------------------------------------------------|
+| **MobileUser** *(BFF)*   | 5048 | `mota.proto`          | `AMoverGRPC`                  | Gateway, JWT auth, VIN authorization, aggregation |
+| **MotoService**          | 5294 | `moto.proto`          | `MotoService`                 | Motorcycle CRUD, documents, VIN validation      |
+| **TelemetryService**     | 5066 | `telemetry.proto`     | `TelemetryService.Grpc`       | Live telemetry, history, server-side streaming  |
+| **TripsService**         | 5278 | `trips.proto`         | `TripsService.Grpc`           | Trip start/end, recent trips, stats, total km   |
+| **UserService**          | 5182 | `user.proto`          | `UserService.Grpc`            | Profile, photo, guest access, access-to-VIN     |
+| **NotificationsService** | 5183 | `notifications.proto` | `NotificationsService.Grpc`   | Per-user inbox, mark-as-read, push (mock)       |
+| **MaintenanceService**   | 5184 | `maintenance.proto`   | `MaintenanceService.Grpc`     | Maintenance agenda, booking, next service (km)  |
+| **ChargingService**      | 5185 | `charging.proto`      | `ChargingService.Grpc`        | Charge state, sessions, battery cycles/health   |
+| **FaultsService**        | 5186 | `faults.proto`        | `FaultsService.Grpc`          | Active faults, warnings, register/resolve       |
 
-Todos os serviços correm exclusivamente em HTTP/2 (Kestrel configurado explicitamente).  
-gRPC Reflection activa apenas em `Development` (para grpcurl / Postman).
+> All services run **exclusively over HTTP/2** (Kestrel is configured explicitly).
+> **gRPC Reflection** is switched on **only in `Development`**, so tools like *grpcurl* and Postman can introspect them.
 
 ---
 
-## Como correr
+## 🧩 How the front door thinks
 
-Cada serviço é um projecto independente. Abre terminais separados:
+Two ideas make the BFF pattern here worth the trouble.
+
+**Aggregation.** A single `GetMotaInfo` call is really a small orchestra: MotoService is
+consulted first (it's *mandatory* — no bike, no answer), then Telemetry, Trips, Charging and
+Faults are called **in parallel** and folded into one response. The app makes one request; the
+backend does the running around.
+
+**Tolerance.** Downstream services are split into *mandatory* and *best-effort*. If a best-effort
+service (telemetry, trips, charging, faults) is unavailable, the BFF fills in sensible defaults
+and returns anyway — the screen still loads. Only the critical path can fail the whole call.
+
+```
+GetMotaInfo(vin)
+        │
+        ├─▶ MotoService.GetMotoByVin ........ mandatory  (fail → fail)
+        ├─▶ TelemetryService ................ best-effort (fail → defaults)
+        ├─▶ TripsService .................... best-effort (fail → defaults)
+        ├─▶ ChargingService ................. best-effort (fail → defaults)
+        └─▶ FaultsService ................... best-effort (fail → defaults)
+                    │
+                    ▼
+             one MotaResponse
+```
+
+The external contract — `mota.proto` — has stayed **stable** through every phase of the
+migration. Services were carved out from behind it without the app ever noticing.
+
+---
+
+## 🚀 Running it
+
+Each service is its own project. The simplest path is eight terminals:
 
 ```bash
-# Terminal 1
-cd MobileUser/MobileUser
-dotnet run
-
-# Terminal 2
-cd MobileUser/MotoService
-dotnet run
-
-# Terminal 3
-cd MobileUser/TelemetryService
-dotnet run
-
-# Terminal 4
-cd MobileUser/TripsService
-dotnet run
-
-# Terminal 5
-cd MobileUser/UserService
-dotnet run
-
-# Terminal 6
-cd MobileUser/NotificationsService
-dotnet run
-
-# Terminal 7
-cd MobileUser/MaintenanceService
-dotnet run
-
-# Terminal 8
-cd MobileUser/ChargingService
-dotnet run
+cd MobileUser/MobileUser            && dotnet run   # 5048  · BFF / gateway
+cd MobileUser/MotoService           && dotnet run   # 5294
+cd MobileUser/TelemetryService      && dotnet run   # 5066
+cd MobileUser/TripsService          && dotnet run   # 5278
+cd MobileUser/UserService           && dotnet run   # 5182
+cd MobileUser/NotificationsService  && dotnet run   # 5183
+cd MobileUser/MaintenanceService    && dotnet run   # 5184
+cd MobileUser/ChargingService       && dotnet run   # 5185
+cd MobileUser/FaultsService         && dotnet run   # 5186
 ```
 
-Ou abre a solução `MobileUser/MobileUser.slnx` no Visual Studio e inicia os 8 projectos.
+Or open **`MobileUser/MobileUser.slnx`** in Visual Studio and start all projects at once.
+
+Service addresses live in each **`appsettings.json`** — never hard-coded.
 
 ---
 
-## Autenticação
+## 🔐 Authentication
 
-O MobileUser expõe um endpoint de login mock. As credenciais são apenas para desenvolvimento — em produção seriam substituídas por um IdP externo (Keycloak, Auth0, OIDC).
+MobileUser exposes a **mock login** for development. In production this endpoint would be
+swapped for an external identity provider (Keycloak, Auth0, any OIDC).
 
-### POST /auth/login
+### `POST /auth/login`
 
-Disponível em todos os ambientes. Aceita JSON com `username` e `password`. Devolve JWT com `sub = userId`.
+Available in every environment. Send `username` and `password`; receive a **JWT** whose
+`sub` claim is the `userId`.
 
-**Utilizadores mock disponíveis:**
+**Mock users**
 
-| username | password | userId | Motas |
-|---|---|---|---|
-| `diana` | `diana123` | `user-diana-001` | V-FG-2024-X1-001, V-FG-2024-X1-002 |
-| `tiago` | `tiago123` | `user-tiago-001` | V-FG-2024-X1-003 |
+| Username | Password    | User ID           | Motorcycles                                   |
+|----------|-------------|-------------------|-----------------------------------------------|
+| `diana`  | `diana123`  | `user-diana-001`  | `V-FG-2024-X1-001`, `V-FG-2024-X1-002`        |
+| `tiago`  | `tiago123`  | `user-tiago-001`  | `V-FG-2024-X1-003`                            |
 
-**Exemplos** (requer cliente HTTP/2, ex: curl com nghttp2 ou PowerShell 7):
+> Requires an **HTTP/2** client (e.g. curl built with nghttp2, or PowerShell 7).
 
 ```bash
-# Login diana
+# Log in as diana
 curl --http2-prior-knowledge -s -X POST http://localhost:5048/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"diana","password":"diana123"}'
-# Resposta: {"token":"eyJ...","userId":"user-diana-001","username":"diana"}
+# → {"token":"eyJ...","userId":"user-diana-001","username":"diana"}
 
-# Login tiago
+# Wrong credentials
 curl --http2-prior-knowledge -s -X POST http://localhost:5048/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"tiago","password":"tiago123"}'
-# Resposta: {"token":"eyJ...","userId":"user-tiago-001","username":"tiago"}
-
-# Credenciais inválidas
-curl --http2-prior-knowledge -s -X POST http://localhost:5048/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"diana","password":"errada"}'
-# Resposta HTTP 401: {"error":"Credenciais inválidas."}
+  -d '{"username":"diana","password":"wrong"}'
+# → HTTP 401  {"error":"Credenciais inválidas."}
 ```
 
-**Nota:** `/dev/token` continua disponível em Development como atalho (gera sempre token para `user-diana-001` sem credenciais). O fluxo principal de teste passa a ser `/auth/login`.
+> **Shortcut:** `GET /dev/token` is available **only in Development** and always issues a token
+> for `user-diana-001` — no credentials needed. The primary test flow is `/auth/login`.
 
 ---
 
-## Testar com grpcurl
+## 🧪 Poking at it with grpcurl
 
-Exemplos de chamadas com [grpcurl](https://github.com/fullstorydev/grpcurl) (requer serviço a correr em Development):
+With a service running in Development, [grpcurl](https://github.com/fullstorydev/grpcurl)
+makes exploration easy:
 
 ```bash
-# Obter token (substituir TOKEN pelo valor devolvido pelo /auth/login)
-TOKEN="eyJ..."
+TOKEN="eyJ..."   # paste the value returned by /auth/login
 
-# Listar serviços disponíveis
+# Discover what a service offers
 grpcurl -plaintext localhost:5048 list
-grpcurl -plaintext localhost:5294 list
-grpcurl -plaintext localhost:5066 list
-grpcurl -plaintext localhost:5278 list
 
-# MobileUser — sem token (espera Unauthenticated)
+# BFF without a token → expects Unauthenticated
 grpcurl -plaintext -d '{}' localhost:5048 mota.MotasService/GetUserData
 
-# MobileUser — com token diana (devolve motas 001 e 002)
-grpcurl -plaintext -H "Authorization: Bearer $TOKEN" -d '{}' localhost:5048 mota.MotasService/GetUserData
+# BFF with diana's token → returns her bikes (001 + 002)
+grpcurl -plaintext -H "Authorization: Bearer $TOKEN" -d '{}' \
+  localhost:5048 mota.MotasService/GetUserData
 
-# MobileUser — GetMotaInfo de mota própria (sucesso)
+# Her own bike → success
 grpcurl -plaintext -H "Authorization: Bearer $TOKEN" \
   -d '{"vin":"V-FG-2024-X1-001"}' localhost:5048 mota.MotasService/GetMotaInfo
 
-# MobileUser — GetMotaInfo de mota de outro utilizador (PermissionDenied)
+# Someone else's bike → PermissionDenied
 grpcurl -plaintext -H "Authorization: Bearer $TOKEN" \
   -d '{"vin":"V-FG-2024-X1-003"}' localhost:5048 mota.MotasService/GetMotaInfo
 
-# MotoService — info de uma mota por VIN (sem JWT — serviço interno)
+# Internal services carry no JWT — they trust the network boundary
 grpcurl -plaintext -d '{"vin":"V-FG-2024-X1-001"}' localhost:5294 moto.MotoService/GetMotoByVin
-
-# TelemetryService — última telemetria (sem JWT — serviço interno)
 grpcurl -plaintext -d '{"vin":"V-FG-2024-X1-001"}' localhost:5066 telemetry.TelemetryService/GetLatestTelemetry
-
-# TripsService — estatísticas de viagem (sem JWT — serviço interno)
 grpcurl -plaintext -d '{"vin":"V-FG-2024-X1-001"}' localhost:5278 trips.TripsService/GetTripStatistics
 ```
 
 ---
 
-## Dados mock
+## 🗃️ Mock data
 
-Os repositórios usam estado em memória (Singleton). Os dados reiniciam quando o processo termina.
+Repositories keep **in-memory, thread-safe state** (Singleton, guarded by `lock`). Everything
+resets when a process stops.
 
-VINs disponíveis por omissão:
+| VIN                | Name             | State        |
+|--------------------|------------------|--------------|
+| `V-FG-2024-X1-001` | Fulgora X1       | Connected    |
+| `V-FG-2024-X1-002` | Fulgora X1 Sport | Charging     |
+| `V-FG-2024-X1-003` | Fulgora X1 Eco   | Off          |
 
-| VIN                | Nome              | Estado     |
-|--------------------|-------------------|------------|
-| V-FG-2024-X1-001   | Fulgora X1        | Ligada     |
-| V-FG-2024-X1-002   | Fulgora X1 Sport  | A carregar |
-| V-FG-2024-X1-003   | Fulgora X1 Eco    | Desligada  |
+Charging snapshots: **001** idle (42 cycles) · **002** charging, active session (108 cycles) ·
+**003** idle (312 cycles, battery health *Fair*).
 
 ---
 
-## Estado da branch MicroServices
+## 🛡️ Security model at a glance
 
-### Fase 1 — Concluída
-- 4 microserviços independentes com gRPC e HTTP/2 explícito
-- Repositórios em memória com thread-safety (`lock`)
-- Validação de input nos serviços gRPC
-- Streaming server-side em TelemetryService
-- Validação de viagem activa antes de StartTrip
-- gRPC Reflection restrita a ambiente Development
+- **One boundary.** JWT is verified **only** at MobileUser. Every gRPC method there is `[Authorize]`d.
+- **Ownership-based authorization.** The `sub` claim identifies the user; `UserService.UserHasAccessToVin`
+  is the single source of truth for whether that user may touch a given VIN (via ownership *or* active guest access).
+  A mismatch returns **`PermissionDenied`**.
+- **Trusted interior.** Internal services (Moto, Telemetry, Trips, User, Notifications, Maintenance,
+  Charging, Faults) carry no JWT. In production they'd sit behind a private network or **mTLS**.
+- **Commands are mocks.** `StartChargingSession`, `EndChargingSession` and `SendPushNotification`
+  record intent — they don't issue physical commands to a vehicle.
 
-### Fase 2 — Concluída
-- MobileUser transformado em BFF: agrega MotoService, TelemetryService e TripsService
-- `GetMotaInfo` chama os 3 serviços downstream (MotoService obrigatório; TelemetryService e TripsService tolerantes a falha)
-- `GetUserData` chama MotoService para a lista de motas e TelemetryService por cada VIN
-- Validação de VIN delegada a `MotoService.ValidateMotoExists`
-- Endereços dos serviços em `appsettings.json` (não hardcoded)
+---
 
-### Fase 3A — Concluída
-- JWT Bearer authentication em MobileUser (`Microsoft.AspNetCore.Authentication.JwtBearer`)
-- Todos os métodos gRPC protegidos com `[Authorize]`
-- `sub` claim extraído do token e passado a `MotoService.ListMotosByUser` como `UserId`
-- Autorização baseada em propriedade: `GetMotaInfo` e operações de VIN verificam se o VIN pertence ao utilizador autenticado; resposta `PermissionDenied` se não pertencer
-- `GET /dev/token` disponível apenas em `Development` — gera token com `sub = "user-diana-001"` (mock)
-- `MotoService`: 3 motas com `UserId` (001 e 002 → `user-diana-001`; 003 → `user-tiago-001`); `ListMotosByUserAsync` filtra por utilizador; `userId` vazio devolve lista vazia
+## 🧱 The build journey
 
-### Fase 3B — Concluída
-- Endpoint `POST /auth/login` com credenciais mock (disponível em todos os ambientes)
-- Dois utilizadores mock: `diana` (motas 001 e 002) e `tiago` (mota 003)
-- Login devolve JWT com `sub = userId`, `userId` e `username`
-- Credenciais inválidas devolvem HTTP 401 com `{"error":"Credenciais inválidas."}`
-- `/dev/token` mantido em Development como atalho (gera token para diana sem credenciais)
-- Em produção, `/auth/login` seria substituído por integração com IdP externo (Keycloak, Auth0, OIDC)
-- Serviços internos (MotoService, TelemetryService, TripsService) continuam sem JWT: a fronteira de segurança é o MobileUser/BFF; em produção seriam protegidos por rede privada ou mTLS
+A record of how the monolith-behind-a-gateway was carved into specialists — the external
+`mota.proto` contract never breaking along the way.
 
-### Fase 4A — Concluída
-- **UserService** criado como microserviço independente (porta 5182, `user.proto`, namespace `UserService.Grpc`)
-- Perfil de utilizador, atualização de perfil e foto de perfil migrados do `MotasRepository` para `UserService`
-- Gestão de guest access (AddGuestAccess, RemoveGuestAccess, ListGuestAccess) migrada para `UserService`
-- `UserHasAccessToVin` implementado no `UserService` como fonte de verdade para controlo de acesso por VIN
-  - Verifica ownership (userId → VINs) e guest access ativo (por email do utilizador)
-  - Substitui a verificação anterior via `MotoService.ListMotosByUser`
-- `MotasGrpcService` (BFF) passa a chamar `UserService` para todas as operações de utilizador e permissões
-- `GetUserData` obtém perfil do `UserService.GetUserProfile` em vez de construir a partir dos claims JWT
-- `MotasRepository` reduzido: mantém apenas notificações (TODO Fase 4B) e manutenção (TODO Fase 4C)
-- Dados continuam mock em memória; `MobileUser` continua a ser o único ponto com JWT externo
+| Phase | Milestone |
+|:-----:|-----------|
+| **1** | Four independent gRPC services on explicit HTTP/2 · in-memory repos with thread-safety · input validation · server-side telemetry streaming · active-trip guard before `StartTrip`. |
+| **2** | MobileUser becomes a true **BFF** — aggregates Moto + Telemetry + Trips; VIN validation delegated to `MotoService.ValidateMotoExists`; addresses moved to `appsettings.json`. |
+| **3A** | **JWT Bearer** added to MobileUser · all methods `[Authorize]`d · `sub` propagated to `ListMotosByUser` · ownership checks with `PermissionDenied`. |
+| **3B** | **`/auth/login`** with mock users (*diana*, *tiago*) · JWT carries `sub`/`userId`/`username` · `/dev/token` kept as a Development shortcut. |
+| **4A** | **UserService** extracted (5182) — profile, photo, guest access, and `UserHasAccessToVin` as the authoritative access check. |
+| **4B** | **NotificationsService** extracted (5183) — per-user inbox, ownership-checked `MarkAsRead`, mock push. |
+| **4C** | **MaintenanceService** extracted (5184) — agenda, booking, next-service km. `IMotasRepository` retired from the BFF; DealershipInfo kept locally, awaiting its own service. |
+| **4D** | **ChargingService** extracted (5185) — charge state, sessions, battery cycles/health; wired into `GetUserData` and `GetMotaInfo` in parallel. |
+| **4E** | **FaultsService** extracted (5186) — active faults, warnings, register / resolve / acknowledge; folded into the aggregation, tolerant to failure. |
 
-### Fase 4C — Concluída
-- **MaintenanceService** criado como microserviço independente (porta 5184, `maintenance.proto`, namespace `MaintenanceService.Grpc`)
-- MaintenanceService trata **apenas manutenção**: agenda de manutenção, agendamento de serviço e próxima revisão em km
-- Lógica de manutenção migrada do `MotasRepository` para `MaintenanceRepository`; `IMotasRepository` e `MotasRepository` eliminados do BFF
-- **DealershipInfo ficou no BFF** (`IDealershipRepository` / `DealershipRepository` local), aguardando DealershipService próprio numa fase futura; MaintenanceService não contém dados de concessionário
-- `MotasGrpcService` (BFF) delega operações de manutenção ao `MaintenanceService`:
-  - `GetNextServiceKm` em `GetUserData` e `GetMotaInfo` — tolerante a falha (devolve 0 se indisponível)
-  - `GetMaintenanceAgenda` — obrigatório; mapeia `MaintenanceService.Grpc.MaintenanceStatus` → `AMoverGRPC.MaintenanceStatus` por cast inteiro
-  - `BookMaintenanceService` — obrigatório; delega validação de data ao `MaintenanceRepository`
-  - `GetDealershipInfo` em `GetUserData` — servido pelo `DealershipRepository` local, não pelo `MaintenanceService`
-- Todas as chamadas ao `MaintenanceService` passam `user_id + vin`; o serviço valida ambos antes de processar
-- O BFF continua a validar `userId + VIN` via `UserService.UserHasAccessToVin` antes de chamar o `MaintenanceService`
-- Contrato externo `mota.proto` não foi alterado
-- Serviços MotoService, TelemetryService, TripsService, UserService e NotificationsService não foram alterados
+---
 
-### Fase 4B — Concluída
-- **NotificationsService** criado como microserviço independente (porta 5183, `notifications.proto`, namespace `NotificationsService.Grpc`)
-- Notificações migradas do `MotasRepository` para `NotificationRepository` com campos `UserId`, `Vin` e `Type`
-- Notificações filtradas por `userId`: diana só vê as suas notificações; tiago só vê as suas
-- Dados mock: diana tem 3 notificações (motas 001 e 002); tiago tem 2 notificações (mota 003)
-- `MotasGrpcService` (BFF) delega `GetNotifications` e `MarkNotificationAsRead` ao `NotificationsService`
-  - `GetNotifications` extrai `userId` do JWT e filtra no NotificationsService
-  - `MarkNotificationAsRead` — o BFF extrai o `userId` do JWT e passa-o ao NotificationsService; o NotificationsService valida se a notificação pertence ao utilizador; se não pertencer, devolve `PermissionDenied`; NotFound e PermissionDenied são ambos mapeados para `ActionStatus { success: false }` no BFF
-- `SendPushNotification` é mock; devolve sucesso com mensagem: `"Push notification mock enviada para o utilizador '...': ..."
-- Contrato externo `mota.proto` não foi alterado: `AppNotification` mantém `{id, title, message, timestamp, is_read}` — o BFF faz o mapeamento
-- `MotasRepository` reduzido: mantém apenas manutenção (TODO Fase 4C)
+## 🔮 Where it's headed — Phase 5+
 
-### Fase 4D — Concluída
-- **ChargingService** criado como microserviço independente (porta 5185, `charging.proto`, namespace `ChargingService.Grpc`)
-- ChargingService trata **apenas carregamento**: estado de carga, histórico de sessões, ciclos de bateria, tempo restante de carga, início e fim de sessão
-- `MotasGrpcService` (BFF) integra `ChargingService` em dois pontos:
-  - `GetUserData`: chama `GetChargingStatus` por cada mota — tolerante a falha (devolve valores por omissão se indisponível)
-  - `GetMotaInfo`: chama `GetChargingStatus` em paralelo com TelemetryService e TripsService via `TryCallAsync`
-- Campos do `MotaResponse` preenchidos a partir do `ChargingService`: `is_charging`, `battery_health`, `battery_cycles`, `charging_time`
-- `StartChargingSession` e `EndChargingSession` tratados como **registo de sessão mock** — não emitem comandos físicos ao veículo
-- Todas as chamadas ao `ChargingService` passam `user_id + vin`; o serviço valida ambos antes de processar
-- O BFF continua a validar `userId + VIN` via `UserService.UserHasAccessToVin` antes de chamar o `ChargingService`
-- Dados mock em memória: VIN 001 não está a carregar (42 ciclos); VIN 002 a carregar (108 ciclos, sessão activa); VIN 003 não está a carregar (312 ciclos, bateria "Fair")
-- Contrato externo `mota.proto` não foi alterado — campos de carregamento já existiam mas não estavam preenchidos
-- Serviços MotoService, TelemetryService, TripsService, UserService, NotificationsService e MaintenanceService não foram alterados
+- [ ] Replace in-memory repositories with a **real database**.
+- [ ] Swap the mock `/auth/login` for an **external IdP** (Keycloak / Auth0 / OIDC).
+- [ ] Harden the interior with **private networking or mTLS** between services.
+- [ ] Give **DealershipInfo** its own dedicated service.
 
-### Fase 4E — Concluída
-- **FaultsService** criado como microserviço independente (porta 5186, `faults.proto`, namespace `FaultsService.Grpc`)
-- FaultsService trata avarias e avisos da mota: `GetActiveFaults`, `GetFaultsByVin`, `GetFaultHistory`, `GetWarnings`, `RegisterFault`, `ResolveFault`, `AcknowledgeFault`
-- Repositório em memória (`FaultsRepository`) com dados mock por VIN (severidades ERROR, WARNING, INFO)
-- `MotasGrpcService` (BFF) integra FaultsService em `GetUserData` e `GetMotaInfo` (tolerante a falha) e expõe `GetFaults`, `GetWarnings`, `AcknowledgeFault` e `ResolveFault` como RPCs externos
+---
 
-### Pendente (Fase 5+)
-- **Fase 5**: Substituir repositórios em memória por base de dados real; substituir `/auth/login` mock por IdP externo
+<div align="center">
+
+**MobileUserAPI** — *A-MoVeR · My Fulgora*
+
+Nine services, one contract, zero drama at the front door. ⚡
+
+</div>
